@@ -4,7 +4,7 @@ import com.github.dockerjava.api.model.Container;
 import com.server.sentinel.service.DiscordService;
 import com.server.sentinel.service.DockerService;
 import com.server.sentinel.service.SystemService;
-import org.springframework.beans.factory.annotation.Value;
+import com.server.sentinel.service.AutoHealService;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -16,18 +16,17 @@ public class MonitoringTask {
     private final SystemService systemService;
     private final DiscordService discordService;
     private final DockerService dockerService;
-    private final List<String> allowedAutoHealContainers;
+    private final AutoHealService autoHealService;
     
-    // Tim List<String> truc tiep tu application.properties
     public MonitoringTask(
             SystemService systemService,
             DiscordService discordService,
             DockerService dockerService,
-            @Value("${sentinel.auto-heal.allowed:}") List<String> allowedAutoHealContainers) {
+            AutoHealService autoHealService) {
         this.systemService = systemService;
         this.discordService = discordService;
         this.dockerService = dockerService;
-        this.allowedAutoHealContainers = allowedAutoHealContainers;
+        this.autoHealService = autoHealService;
     }
     
     @Scheduled(fixedRate = 60000)
@@ -56,7 +55,7 @@ public class MonitoringTask {
                     alertMsg.append("- Ten: ").append(containerName).append("\n");
                     
                     // Kiem tra xem container co nam trong danh sach duoc phep cuu khong
-                    if (allowedAutoHealContainers.contains(containerName)) {
+                    if (autoHealService.isAllowed(containerName)) {
                         try {
                             dockerService.startContainer(containerId);
                             alertMsg.append("  -> [THANH CONG] Da tu dong cuu song!\n");

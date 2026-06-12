@@ -35,4 +35,14 @@ public class DockerService {
         // Gửi lệnh 'docker start <containerId>' tới Docker Daemon
         dockerClient.startContainerCmd(containerId).exec();
     }
+    
+    public void stopContainer(String containerId) {
+        // Gửi lệnh 'docker stop <containerId>' tới Docker Daemon
+        dockerClient.stopContainerCmd(containerId).exec();
+    }
+    
+    public void restartContainer(String containerId) {
+        // Gửi lệnh 'docker restart <containerId>' tới Docker Daemon
+        dockerClient.restartContainerCmd(containerId).exec();
+    }
 }

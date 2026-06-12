@@ -20,4 +20,8 @@ public class SystemService {
     public long getFreeMemoryMB() {
         return osBean.getFreeMemorySize() / (1024 * 1024);
     }
+    
+    public long getTotalMemoryMB() {
+        return osBean.getTotalMemorySize() / (1024 * 1024);
+    }
 }
