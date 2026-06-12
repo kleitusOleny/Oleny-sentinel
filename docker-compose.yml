@@ -1,0 +1,11 @@
+version: '3.8'
+
+services:
+  sentinel:
+    build: .
+    container_name: server-sentinel
+    restart: unless-stopped
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock

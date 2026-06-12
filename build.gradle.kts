@@ -20,8 +20,17 @@ repositories {
 
 dependencies {
     implementation("org.springframework.boot:spring-boot-starter")
+    // Thêm starter-web để hỗ trợ gửi HTTP request
+    implementation("org.springframework.boot:spring-boot-starter-web")
+
+    // Thêm các thư viện Docker client
+    implementation("com.github.docker-java:docker-java-core:3.3.4")
+
+    implementation("com.github.docker-java:docker-java-transport-zerodep:3.3.4")
+
     testImplementation("org.springframework.boot:spring-boot-starter-test")
     testRuntimeOnly("org.junit.platform:junit-platform-launcher")
+
 }
 
 tasks.withType<Test> {
