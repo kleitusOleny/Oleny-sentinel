@@ -45,8 +45,8 @@ public class MonitoringTask {
         double cpuLoad = systemService.getCpuLoad();
         long freeMemory = systemService.getFreeMemoryMB();
         long totalMemory = systemService.getTotalMemoryMB();
-        double ramUsagePercent = totalMemory > 0 
-                ? ((double) (totalMemory - freeMemory) / totalMemory) * 100 
+        double ramUsagePercent = totalMemory > 0
+                ? ((double) (totalMemory - freeMemory) / totalMemory) * 100
                 : 0.0;
                 
         double diskUsagePercent = systemService.getDiskUsagePercent();
@@ -55,36 +55,35 @@ public class MonitoringTask {
         boolean gpuAvailable = systemService.isGpuAvailable();
         double gpuLoad = systemService.getGpuLoad();
         double gpuMemoryUsagePercent = systemService.getGpuMemoryUsagePercent();
-        
-        // Đẩy chỉ số hiệu năng mở rộng vào lịch sử
+
         historyService.addRecord(
-            cpuLoad, 
-            ramUsagePercent, 
-            diskUsagePercent, 
-            rxSpeed, 
-            txSpeed, 
-            gpuAvailable, 
-            gpuLoad, 
+            cpuLoad,
+            ramUsagePercent,
+            diskUsagePercent,
+            rxSpeed,
+            txSpeed,
+            gpuAvailable,
+            gpuLoad,
             gpuMemoryUsagePercent
         );
         
-        System.out.println("Kiem tra he thong: CPU = " + String.format("%.2f", cpuLoad) 
+        System.out.println("Kiem tra he thong: CPU = " + String.format("%.2f", cpuLoad)
                 + "%, RAM trong = " + freeMemory + " MB, Disk = " + String.format("%.1f", diskUsagePercent) + "%");
         
         double cpuLimit = settingsService.getCpuThreshold();
         if (cpuLoad > cpuLimit) {
-            discordService.sendAlert("[CANH BAO] CPU dang hoat dong o muc " + String.format("%.2f", cpuLoad) + "% tren server (Vuot nguong " + String.format("%.1f", cpuLimit) + "%).");
+            discordService.sendAlert("[WARNING] CPU dang hoat dong o muc " + String.format("%.2f", cpuLoad) + "% tren server (Vuot nguong " + String.format("%.1f", cpuLimit) + "%).");
         }
         
         long ramLimit = settingsService.getRamThresholdMB();
         if (freeMemory < ramLimit) {
-            discordService.sendAlert("[CANH BAO] RAM trong dang o muc thap (" + freeMemory + " MB) tren server (Duoi nguong " + ramLimit + " MB).");
+            discordService.sendAlert("[WARNING] RAM trong dang o muc thap (" + freeMemory + " MB) tren server (Duoi nguong " + ramLimit + " MB).");
         }
         
         try {
             List<Container> crashedContainers = dockerService.getExitedContainers();
             if (!crashedContainers.isEmpty()) {
-                StringBuilder alertMsg = new StringBuilder("[BAO DONG] Phat hien container bi sap:\n");
+                StringBuilder alertMsg = new StringBuilder("[ALERT] Phat hien container bi sap:\n");
                 
                 for (Container c : crashedContainers) {
                     String containerName = c.getNames()[0].replace("/", "");
@@ -95,12 +94,12 @@ public class MonitoringTask {
                     if (autoHealService.isAllowed(containerName)) {
                         try {
                             dockerService.startContainer(containerId);
-                            alertMsg.append("  -> [THANH CONG] Da tu dong cuu song!\n");
+                            alertMsg.append("  -> [SUCCESS] Da tu dong cuu song!\n");
                         } catch (Exception e) {
-                            alertMsg.append("  -> [THAT BAI] Khong the khoi dong lai: ").append(e.getMessage()).append("\n");
+                            alertMsg.append("  -> [FAILED] Khong the khoi dong lai: ").append(e.getMessage()).append("\n");
                         }
                     } else {
-                        alertMsg.append("  -> [BO QUA] Container khong nam trong danh sach Auto-Heal.\n");
+                        alertMsg.append("  -> [SKIPPED] Container khong nam trong danh sach Auto-Heal.\n");
                     }
                 }
                 
