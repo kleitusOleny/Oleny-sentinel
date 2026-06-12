@@ -8,15 +8,7 @@
 	import ContainerCard from '$lib/components/ContainerCard.svelte';
 	import LogsModal from '$lib/components/LogsModal.svelte';
 
-	// Tu dong xac dinh URL API dua tren domain/IP dang truy cap tren trinh duyet
-	const getApiBase = () => {
-		if (typeof window !== 'undefined') {
-			const hostname = window.location.hostname;
-			return `http://${hostname}:8081/api`;
-		}
-		return 'http://localhost:8081/api';
-	};
-	const API_BASE = getApiBase();
+	const API_BASE = '/api';
 
 	// Session state
 	let userSession = $state<{ email: string; name: string; picture: string; token: string } | null>(null);

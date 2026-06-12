@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -27,6 +28,7 @@ public class MonitoringTask {
 
     // Quan ly trang thai de tranh spam thong bao
     private final Set<String> alertedContainers = ConcurrentHashMap.newKeySet();
+    private final Map<String, Long> runningContainersStartTimes = new ConcurrentHashMap<>();
     private long lastCpuAlertTime = 0;
     private long lastRamAlertTime = 0;
     private static final long COOLDOWN_MS = 10 * 60 * 1000; // Cooldown 10 phut cho canh bao he thong
@@ -44,6 +46,19 @@ public class MonitoringTask {
         this.autoHealService = autoHealService;
         this.historyService = historyService;
         this.settingsService = settingsService;
+
+        // Khoi tao danh sach container da sap san tu truoc khi Sentinel chay de tranh spam
+        try {
+            List<Container> allContainers = dockerService.getAllContainers();
+            for (Container c : allContainers) {
+                String state = c.getState();
+                if (state != null && state.equalsIgnoreCase("exited")) {
+                    alertedContainers.add(c.getId());
+                }
+            }
+        } catch (Exception e) {
+            System.err.println("Khong the khoi tao danh sach container da sap: " + e.getMessage());
+        }
     }
     
     @Scheduled(fixedRate = 30000) // Chay moi 30 giay
@@ -107,13 +122,29 @@ public class MonitoringTask {
         try {
             List<Container> allContainers = dockerService.getAllContainers();
             
-            // Xoa cac container dang chay ra khoi danh sach da canh bao (reset trang thai khi online tro lai)
+            // Cap nhat trang thai cac container dang chay va ngan ngua spam canh bao tu container khong thuoc Auto-Heal
+            Set<String> currentRunningIds = new java.util.HashSet<>();
             for (Container c : allContainers) {
                 String state = c.getState();
                 if (state != null && state.equalsIgnoreCase("running")) {
-                    alertedContainers.remove(c.getId());
+                    String containerId = c.getId();
+                    currentRunningIds.add(containerId);
+                    
+                    // Ghi nhan thoi diem bat dau chay
+                    runningContainersStartTimes.putIfAbsent(containerId, System.currentTimeMillis());
+                    
+                    long runningTime = System.currentTimeMillis() - runningContainersStartTimes.get(containerId);
+                    String containerName = c.getNames()[0].replace("/", "");
+                    
+                    // Neu container nam trong danh sach Auto-Heal, reset canh bao ngay de san sang cuu tiep neu sap lai
+                    // Neu khong trong Auto-Heal, chi reset khi da chay on dinh lien tuc tren 5 phut (tranh spam crash loop)
+                    if (autoHealService.isAllowed(containerName) || runningTime > 5 * 60 * 1000) {
+                        alertedContainers.remove(containerId);
+                    }
                 }
             }
+            // Don dep thong tin thoi gian cua cac container da tat
+            runningContainersStartTimes.keySet().removeIf(id -> !currentRunningIds.contains(id));
 
             // Lay danh sach cac container bi sap (exited)
             List<Container> crashedContainers = allContainers.stream()

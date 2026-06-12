@@ -24,5 +24,6 @@ services:
       - "3000:3000"
     environment:
       - ORIGIN=http://localhost:3000
+      - BACKEND_URL=http://sentinel:8080/api
     depends_on:
       - sentinel
