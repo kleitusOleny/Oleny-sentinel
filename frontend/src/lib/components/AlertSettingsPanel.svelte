@@ -2,15 +2,17 @@
 	interface Props {
 		cpuThreshold: number;
 		ramThresholdMB: number;
-		discordWebhookUrl: string;
-		onsave: (settings: { cpuThreshold: number; ramThresholdMB: number; discordWebhookUrl: string }) => Promise<void>;
+		discordBotToken: string;
+		discordChannelId: string;
+		onsave: (settings: { cpuThreshold: number; ramThresholdMB: number; discordBotToken: string; discordChannelId: string }) => Promise<void>;
 	}
 
-	let { cpuThreshold, ramThresholdMB, discordWebhookUrl, onsave }: Props = $props();
+	let { cpuThreshold, ramThresholdMB, discordBotToken, discordChannelId, onsave }: Props = $props();
 
 	let settingsCpu = $state(cpuThreshold);
 	let settingsRam = $state(ramThresholdMB);
-	let settingsDiscordUrl = $state(discordWebhookUrl);
+	let settingsDiscordToken = $state(discordBotToken);
+	let settingsDiscordChannelId = $state(discordChannelId);
 	let isSavingSettings = $state(false);
 	let settingsMessage = $state('');
 	let settingsMessageType = $state<'success' | 'error' | ''>('');
@@ -23,7 +25,10 @@
 		settingsRam = ramThresholdMB;
 	});
 	$effect(() => {
-		settingsDiscordUrl = discordWebhookUrl;
+		settingsDiscordToken = discordBotToken;
+	});
+	$effect(() => {
+		settingsDiscordChannelId = discordChannelId;
 	});
 
 	async function handleSubmit(e: SubmitEvent) {
@@ -35,7 +40,8 @@
 			await onsave({
 				cpuThreshold: settingsCpu,
 				ramThresholdMB: settingsRam,
-				discordWebhookUrl: settingsDiscordUrl
+				discordBotToken: settingsDiscordToken,
+				discordChannelId: settingsDiscordChannelId
 			});
 			settingsMessageType = 'success';
 			settingsMessage = 'Lưu cấu hình thành công!';
@@ -95,12 +101,24 @@
 		</div>
 
 		<div>
-			<label class="block text-xs font-semibold text-zinc-400 mb-1.5" for="discord_webhook_input">Discord Webhook URL</label>
+			<label class="block text-xs font-semibold text-zinc-400 mb-1.5" for="discord_bot_token_input">Discord Bot Token</label>
 			<input
 				type="password"
-				id="discord_webhook_input"
-				placeholder="https://discord.com/api/webhooks/..."
-				bind:value={settingsDiscordUrl}
+				id="discord_bot_token_input"
+				placeholder="MTUxN..."
+				bind:value={settingsDiscordToken}
+				class="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
+				required
+			/>
+		</div>
+
+		<div>
+			<label class="block text-xs font-semibold text-zinc-400 mb-1.5" for="discord_channel_id_input">Discord Channel ID</label>
+			<input
+				type="text"
+				id="discord_channel_id_input"
+				placeholder="Ví dụ: 1515016594974183579"
+				bind:value={settingsDiscordChannelId}
 				class="w-full bg-zinc-950 border border-zinc-800 text-zinc-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-1 focus:ring-indigo-500 font-mono"
 			/>
 		</div>
@@ -129,4 +147,20 @@
 			{/if}
 		</button>
 	</form>
+
+	<div class="mt-5 pt-4 border-t border-zinc-850 text-[11px] text-zinc-500 space-y-2 select-text">
+		<div class="font-bold text-zinc-400 flex items-center gap-1.5">
+			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 text-indigo-400">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M11.25 11.25l.041-.02a.75.75 0 111.063 1.06l-.041.02a.75.75 0 01-1.063-1.06zm-9.661 12.77a1.5 1.5 0 01-2.293-1.094l.808-5.314a3.75 3.75 0 01.759-1.952l9.864-9.864a2.441 2.441 0 113.452 3.452l-9.864 9.864a3.75 3.75 0 01-1.952.759l-5.314.808zm18.59-19.59a2.441 2.441 0 113.452 3.452l-2.235 2.235-3.452-3.452 2.235-2.235zM12 3v.75m0 16.5V21m9-9h-.75M4.25 12H3m15.222-6.222l-.53.53m-10.384 10.384l-.53.53m10.914 0l-.53-.53M6.868 6.868l-.53-.53" />
+			</svg>
+			Hướng dẫn cài đặt Guild (Server):
+		</div>
+		<ul class="list-decimal pl-4 space-y-1">
+			<li>Vào <a href="https://discord.com/developers/applications" target="_blank" rel="noreferrer" class="text-indigo-400 hover:text-indigo-300 font-semibold hover:underline">Discord Dev Portal</a>, chọn App của bạn.</li>
+			<li>Mở **OAuth2** > **URL Generator**, tích chọn: <code class="text-zinc-300 bg-zinc-950 px-1 py-0.5 rounded font-mono">bot</code> &amp; <code class="text-zinc-300 bg-zinc-950 px-1 py-0.5 rounded font-mono">applications.commands</code>.</li>
+			<li>Tại **Bot Permissions**, tích chọn: <code class="text-zinc-400">Send Messages</code>, <code class="text-zinc-400">Embed Links</code>.</li>
+			<li>Sử dụng liên kết được tạo ra ở dưới để cài đặt bot vào Server của bạn.</li>
+			<li>Bật Chế độ nhà phát triển trên Discord, click chuột phải vào kênh nhận tin nhắn chọn **Copy Channel ID** rồi điền vào ô trên.</li>
+		</ul>
+	</div>
 </div>

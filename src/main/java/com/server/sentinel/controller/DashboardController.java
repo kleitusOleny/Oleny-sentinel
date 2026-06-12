@@ -6,6 +6,7 @@ import com.server.sentinel.service.DockerService;
 import com.server.sentinel.service.SystemService;
 import com.server.sentinel.service.SystemStatsHistoryService;
 import com.server.sentinel.service.SettingsService;
+import com.server.sentinel.service.DiscordBotService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,18 +22,21 @@ public class DashboardController {
     private final AutoHealService autoHealService;
     private final SystemStatsHistoryService statsHistoryService;
     private final SettingsService settingsService;
+    private final DiscordBotService discordBotService;
     
     public DashboardController(
             DockerService dockerService, 
             SystemService systemService, 
             AutoHealService autoHealService,
             SystemStatsHistoryService statsHistoryService,
-            SettingsService settingsService) {
+            SettingsService settingsService,
+            DiscordBotService discordBotService) {
         this.dockerService = dockerService;
         this.systemService = systemService;
         this.autoHealService = autoHealService;
         this.statsHistoryService = statsHistoryService;
         this.settingsService = settingsService;
+        this.discordBotService = discordBotService;
     }
     
     @GetMapping("/containers")
@@ -131,6 +135,7 @@ public class DashboardController {
     public Map<String, Object> updateSettings(@RequestBody Map<String, Object> payload) {
         try {
             settingsService.updateSettings(payload);
+            discordBotService.restartBot(); // Tự động khởi động lại bot khi cấu hình thay đổi
             return Map.of("status", "success", "settings", settingsService.getSettings());
         } catch (Exception e) {
             return Map.of("status", "error", "message", e.getMessage());

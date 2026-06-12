@@ -39,7 +39,8 @@
 	// Dynamic Alerts Configuration states (fetched from backend)
 	let settingsCpu = $state(90.0);
 	let settingsRam = $state(500);
-	let settingsDiscordUrl = $state('');
+	let settingsDiscordToken = $state('');
+	let settingsDiscordChannelId = $state('');
 
 	// Derived states (Svelte 5 runes)
 	let filteredContainers = $derived(
@@ -66,14 +67,15 @@
 				const data = await res.json();
 				settingsCpu = data.cpuThreshold ?? 90.0;
 				settingsRam = data.ramThresholdMB ?? 500;
-				settingsDiscordUrl = data.discordWebhookUrl ?? '';
+				settingsDiscordToken = data.discordBotToken ?? '';
+				settingsDiscordChannelId = data.discordChannelId ?? '';
 			}
 		} catch (err) {
 			console.error('Lỗi khi tải cấu hình:', err);
 		}
 	}
 
-	async function handleSaveSettings(settings: { cpuThreshold: number; ramThresholdMB: number; discordWebhookUrl: string }) {
+	async function handleSaveSettings(settings: { cpuThreshold: number; ramThresholdMB: number; discordBotToken: string; discordChannelId: string }) {
 		const res = await fetch(`${API_BASE}/settings`, {
 			method: 'POST',
 			headers: {
@@ -85,7 +87,8 @@
 		if (data.status === 'success') {
 			settingsCpu = data.settings.cpuThreshold;
 			settingsRam = data.settings.ramThresholdMB;
-			settingsDiscordUrl = data.settings.discordWebhookUrl;
+			settingsDiscordToken = data.settings.discordBotToken;
+			settingsDiscordChannelId = data.settings.discordChannelId;
 		} else {
 			throw new Error(data.message || 'Lưu cấu hình thất bại.');
 		}
@@ -272,7 +275,8 @@
 				<AlertSettingsPanel 
 					cpuThreshold={settingsCpu} 
 					ramThresholdMB={settingsRam} 
-					discordWebhookUrl={settingsDiscordUrl} 
+					discordBotToken={settingsDiscordToken} 
+					discordChannelId={settingsDiscordChannelId} 
 					onsave={handleSaveSettings}
 				/>
 			</section>
