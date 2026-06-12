@@ -4,6 +4,8 @@ import com.github.dockerjava.api.model.Container;
 import com.server.sentinel.service.AutoHealService;
 import com.server.sentinel.service.DockerService;
 import com.server.sentinel.service.SystemService;
+import com.server.sentinel.service.SystemStatsHistoryService;
+import com.server.sentinel.service.SettingsService;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -17,11 +19,20 @@ public class DashboardController {
     private final DockerService dockerService;
     private final SystemService systemService;
     private final AutoHealService autoHealService;
+    private final SystemStatsHistoryService statsHistoryService;
+    private final SettingsService settingsService;
     
-    public DashboardController(DockerService dockerService, SystemService systemService, AutoHealService autoHealService) {
+    public DashboardController(
+            DockerService dockerService, 
+            SystemService systemService, 
+            AutoHealService autoHealService,
+            SystemStatsHistoryService statsHistoryService,
+            SettingsService settingsService) {
         this.dockerService = dockerService;
         this.systemService = systemService;
         this.autoHealService = autoHealService;
+        this.statsHistoryService = statsHistoryService;
+        this.settingsService = settingsService;
     }
     
     @GetMapping("/containers")
@@ -31,11 +42,22 @@ public class DashboardController {
     
     @GetMapping("/system/stats")
     public Map<String, Object> getSystemStats() {
-        return Map.of(
-            "cpuLoad", systemService.getCpuLoad(),
-            "freeMemoryMB", systemService.getFreeMemoryMB(),
-            "totalMemoryMB", systemService.getTotalMemoryMB()
-        );
+        Map<String, Object> stats = new java.util.HashMap<>();
+        stats.put("cpuLoad", systemService.getCpuLoad());
+        stats.put("freeMemoryMB", systemService.getFreeMemoryMB());
+        stats.put("totalMemoryMB", systemService.getTotalMemoryMB());
+        stats.put("diskTotalGB", systemService.getDiskTotalGB());
+        stats.put("diskUsedGB", systemService.getDiskUsedGB());
+        stats.put("diskUsagePercent", systemService.getDiskUsagePercent());
+        stats.put("rxSpeedKBps", systemService.getRxSpeedKBps());
+        stats.put("txSpeedKBps", systemService.getTxSpeedKBps());
+        stats.put("gpuAvailable", systemService.isGpuAvailable());
+        stats.put("gpuName", systemService.getGpuName());
+        stats.put("gpuLoad", systemService.getGpuLoad());
+        stats.put("gpuMemoryTotalMB", systemService.getGpuMemoryTotalMB());
+        stats.put("gpuMemoryUsedMB", systemService.getGpuMemoryUsedMB());
+        stats.put("gpuMemoryUsagePercent", systemService.getGpuMemoryUsagePercent());
+        return stats;
     }
     
     @PostMapping("/containers/{id}/start")
@@ -85,5 +107,33 @@ public class DashboardController {
             "whitelist", autoHealService.getWhitelist(),
             "isAllowed", autoHealService.isAllowed(name)
         );
+    }
+    
+    @GetMapping("/containers/{id}/logs")
+    public Map<String, String> getContainerLogs(
+            @PathVariable String id, 
+            @RequestParam(defaultValue = "100") int lines) {
+        String logs = dockerService.getContainerLogs(id, lines);
+        return Map.of("logs", logs);
+    }
+    
+    @GetMapping("/system/history")
+    public List<Map<String, Object>> getSystemHistory() {
+        return statsHistoryService.getHistory();
+    }
+    
+    @GetMapping("/settings")
+    public Map<String, Object> getSettings() {
+        return settingsService.getSettings();
+    }
+    
+    @PostMapping("/settings")
+    public Map<String, Object> updateSettings(@RequestBody Map<String, Object> payload) {
+        try {
+            settingsService.updateSettings(payload);
+            return Map.of("status", "success", "settings", settingsService.getSettings());
+        } catch (Exception e) {
+            return Map.of("status", "error", "message", e.getMessage());
+        }
     }
 }

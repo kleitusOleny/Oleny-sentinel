@@ -42,3 +42,4 @@ out/
 !*.env.example
 src/main/resources/.env
 
+/config/

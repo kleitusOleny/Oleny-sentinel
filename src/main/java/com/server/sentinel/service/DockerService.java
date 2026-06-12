@@ -45,4 +45,23 @@ public class DockerService {
         // Gửi lệnh 'docker restart <containerId>' tới Docker Daemon
         dockerClient.restartContainerCmd(containerId).exec();
     }
+    
+    public String getContainerLogs(String containerId, int tailLines) {
+        final StringBuilder logs = new StringBuilder();
+        try {
+            dockerClient.logContainerCmd(containerId)
+                    .withStdOut(true)
+                    .withStdErr(true)
+                    .withTail(tailLines)
+                    .exec(new com.github.dockerjava.api.async.ResultCallback.Adapter<com.github.dockerjava.api.model.Frame>() {
+                        @Override
+                        public void onNext(com.github.dockerjava.api.model.Frame item) {
+                            logs.append(new String(item.getPayload()));
+                        }
+                    }).awaitCompletion(5, java.util.concurrent.TimeUnit.SECONDS);
+        } catch (Exception e) {
+            return "Loi khi lay logs container: " + e.getMessage();
+        }
+        return logs.toString();
+    }
 }

@@ -12,6 +12,7 @@ services:
       - ALLOWED_AUTO_HEAL_CONTAINERS=${ALLOWED_AUTO_HEAL_CONTAINERS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
+      - ./config:/app/config
 
   frontend:
     build:
