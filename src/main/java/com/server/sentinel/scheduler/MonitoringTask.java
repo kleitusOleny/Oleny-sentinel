@@ -4,6 +4,7 @@ import com.github.dockerjava.api.model.Container;
 import com.server.sentinel.service.DiscordService;
 import com.server.sentinel.service.DockerService;
 import com.server.sentinel.service.SystemService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -15,17 +16,22 @@ public class MonitoringTask {
     private final SystemService systemService;
     private final DiscordService discordService;
     private final DockerService dockerService;
+    private final List<String> allowedAutoHealContainers;
     
-    public MonitoringTask(SystemService systemService, DiscordService discordService, DockerService dockerService) {
+    // Tim List<String> truc tiep tu application.properties
+    public MonitoringTask(
+            SystemService systemService,
+            DiscordService discordService,
+            DockerService dockerService,
+            @Value("${sentinel.auto-heal.allowed:}") List<String> allowedAutoHealContainers) {
         this.systemService = systemService;
         this.discordService = discordService;
         this.dockerService = dockerService;
+        this.allowedAutoHealContainers = allowedAutoHealContainers;
     }
     
-    // Chay moi 60 giay
     @Scheduled(fixedRate = 60000)
     public void checkSystemHealth() {
-        // 1. Kiem tra CPU va RAM
         double cpuLoad = systemService.getCpuLoad();
         long freeMemory = systemService.getFreeMemoryMB();
         
@@ -39,16 +45,27 @@ public class MonitoringTask {
             discordService.sendAlert("[CANH BAO] RAM trong dang o muc thap (" + freeMemory + " MB) tren server.");
         }
         
-        // 2. Kiem tra trang thai Container
         try {
             List<Container> crashedContainers = dockerService.getExitedContainers();
             if (!crashedContainers.isEmpty()) {
-                StringBuilder alertMsg = new StringBuilder("[BAO DONG] Phat hien cac container sau dang bi dung hoat dong:\n");
+                StringBuilder alertMsg = new StringBuilder("[BAO DONG] Phat hien container bi sap:\n");
                 
                 for (Container c : crashedContainers) {
-                    // Docker API tra ve ten container co dau "/" o dau, can cat bo
                     String containerName = c.getNames()[0].replace("/", "");
-                    alertMsg.append("- ").append(containerName).append("\n");
+                    String containerId = c.getId();
+                    alertMsg.append("- Ten: ").append(containerName).append("\n");
+                    
+                    // Kiem tra xem container co nam trong danh sach duoc phep cuu khong
+                    if (allowedAutoHealContainers.contains(containerName)) {
+                        try {
+                            dockerService.startContainer(containerId);
+                            alertMsg.append("  -> [THANH CONG] Da tu dong cuu song!\n");
+                        } catch (Exception e) {
+                            alertMsg.append("  -> [THAT BAI] Khong the khoi dong lai: ").append(e.getMessage()).append("\n");
+                        }
+                    } else {
+                        alertMsg.append("  -> [BO QUA] Container khong nam trong danh sach Auto-Heal.\n");
+                    }
                 }
                 
                 discordService.sendAlert(alertMsg.toString());

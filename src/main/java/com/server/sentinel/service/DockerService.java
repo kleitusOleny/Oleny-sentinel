@@ -30,4 +30,9 @@ public class DockerService {
                 })
                 .collect(Collectors.toList());
     }
+    
+    public void startContainer(String containerId) {
+        // Gửi lệnh 'docker start <containerId>' tới Docker Daemon
+        dockerClient.startContainerCmd(containerId).exec();
+    }
 }
