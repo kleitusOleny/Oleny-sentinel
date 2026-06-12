@@ -18,7 +18,7 @@
    - Tích hợp một Scheduler định kỳ quét trạng thái Docker Daemon.
    - Phát hiện các container bị sập (`exited`). Nếu container đó nằm trong danh sách Whitelist cho phép cứu, hệ thống sẽ tự động khởi chạy lại (`docker start`) tức thì.
    - Bật/tắt chế độ tự phục hồi cho từng container bằng công tắc (Switch toggle) nhanh trên giao diện.
-4. **Cảnh báo tức thời qua Discord**:
+4. **Cảnh báo qua Discord**:
    - Tự động phát thông báo khi hệ thống khởi động.
    - Cảnh báo khi tài nguyên máy chủ vượt ngưỡng nguy hiểm (Ví dụ: CPU > 90%, RAM trống < 500MB).
    - Gửi báo cáo chi tiết về Discord khi phát hiện container sập và kết quả tự động khôi phục (Thành công/Thất bại).
@@ -34,9 +34,8 @@
 - **Build Tool**: Gradle (Kotlin DSL)
 
 ### Frontend (SvelteKit UI)
-- **Framework**: SvelteKit 5 (chạy chế độ Runes hiện đại nhất).
-- **Style**: Tailwind CSS v4 (sử dụng plugin `@tailwindcss/vite` biên dịch siêu tốc).
-- **Thiết kế**: Premium Dark Mode, phong cách Glassmorphism sang trọng, responsive tương thích hoàn toàn thiết bị di động.
+- **Framework**: SvelteKit 5.
+- **Style**: Tailwind CSS v4.
 
 ---
 
@@ -88,6 +87,3 @@ graph TD
 | `ORIGIN` | Biến môi trường của SvelteKit Node adapter xác thực tên miền chạy giao diện | `http://localhost:3000` |
 
 ---
-
-## 📝 Giấy phép
-Dự án được phát triển nhằm mục đích quản trị và giám sát hạ tầng Docker cá nhân một cách gọn nhẹ và hiệu quả.

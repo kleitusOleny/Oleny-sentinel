@@ -131,7 +131,7 @@
 
 <div class="min-h-screen bg-zinc-950 text-zinc-50 font-sans p-4 md:p-8 selection:bg-indigo-500 selection:text-white">
 	<div class="max-w-7xl mx-auto space-y-8">
-		
+
 		<!-- TOP HEADER -->
 		<header class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-6 shadow-2xl">
 			<div>
@@ -144,19 +144,19 @@
 						SERVER SENTINEL
 					</h1>
 				</div>
-				<p class="text-zinc-400 text-sm mt-1">Hệ thống giám sát hiệu năng máy chủ và tự phục hồi Docker Container</p>
+				<p class="text-zinc-400 text-sm mt-1">Hệ thống giám sát hiệu năng máy chủ và tự khôi phục Docker Container</p>
 			</div>
-			
+
 			<div class="flex items-center gap-3 w-full md:w-auto">
 				<!-- Toggle Auto Refresh -->
 				<label class="flex items-center gap-2 text-sm text-zinc-400 cursor-pointer bg-zinc-900 border border-zinc-800 px-4 py-2 rounded-xl hover:border-zinc-700 select-none">
 					<input type="checkbox" bind:checked={autoRefresh} class="rounded border-zinc-800 text-indigo-600 focus:ring-indigo-500 bg-zinc-950 w-4 h-4 cursor-pointer" />
 					<span>Tự động tải lại (5s)</span>
 				</label>
-				
+
 				<!-- Force Reload -->
-				<button 
-					onclick={fetchData} 
+				<button
+					onclick={fetchData}
 					class="p-2.5 rounded-xl bg-indigo-600/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-600 hover:text-white transition-all cursor-pointer"
 					title="Tải lại ngay"
 				>
@@ -200,15 +200,14 @@
 
 				<div class="space-y-2">
 					<div class="w-full bg-zinc-800/80 h-3 rounded-full overflow-hidden">
-						<div 
+						<div
 							class="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full transition-all duration-500 ease-out"
 							style="width: {systemStats ? Math.min(systemStats.cpuLoad, 100) : 0}%"
 						></div>
 					</div>
 					<div class="flex justify-between text-xs text-zinc-500">
 						<span>0%</span>
-						<span>Nhẹ nhàng</span>
-						<span>90% Cảnh báo</span>
+						<span>Cảnh báo</span>
 						<span>100% Tải tối đa</span>
 					</div>
 				</div>
@@ -233,7 +232,7 @@
 
 				<div class="space-y-2">
 					<div class="w-full bg-zinc-800/80 h-3 rounded-full overflow-hidden">
-						<div 
+						<div
 							class="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500 ease-out"
 							style="width: {memoryUsagePercent}%"
 						></div>
@@ -257,11 +256,11 @@
 					</svg>
 					Danh sách Docker Container ({filteredContainers.length})
 				</h2>
-				
+
 				<div class="relative w-full md:w-96">
-					<input 
-						type="text" 
-						placeholder="Tìm kiếm container theo tên, image..." 
+					<input
+						type="text"
+						placeholder="Tìm kiếm container theo tên, image..."
 						bind:value={searchQuery}
 						class="w-full bg-zinc-900 border border-zinc-800 text-zinc-100 placeholder-zinc-500 rounded-xl pl-10 pr-4 py-2 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
 					/>
@@ -317,14 +316,14 @@
 									<h3 class="font-extrabold text-zinc-200 truncate group-hover:text-white transition-colors text-base" title={cName}>
 										{cName}
 									</h3>
-									
+
 									<!-- Status Badge -->
 									<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-xs font-semibold select-none
 										{isRunning ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20' : ''}
 										{isExited ? 'bg-rose-500/10 text-rose-400 border border-rose-500/20' : ''}
 										{!isRunning && !isExited ? 'bg-amber-500/10 text-amber-400 border border-amber-500/20' : ''}
 									">
-										<span class="w-1.5 h-1.5 rounded-full 
+										<span class="w-1.5 h-1.5 rounded-full
 											{isRunning ? 'bg-emerald-400 animate-pulse' : ''}
 											{isExited ? 'bg-rose-400' : ''}
 											{!isRunning && !isExited ? 'bg-amber-400' : ''}
@@ -342,7 +341,7 @@
 								<!-- ID Copyable -->
 								<div class="flex items-center justify-between bg-zinc-950/60 rounded-lg px-2.5 py-1 text-xs border border-zinc-800/50">
 									<code class="font-mono text-zinc-500 truncate mr-2">{cId.substring(0, 12)}...</code>
-									<button 
+									<button
 										onclick={() => copyToClipboard(cId, cId)}
 										class="text-zinc-500 hover:text-zinc-300 transition-colors p-1 cursor-pointer"
 										title="Sao chép ID"
@@ -373,16 +372,16 @@
 										</div>
 									</div>
 
-									<button 
+									<button
 										onclick={() => handleToggleAutoHeal(cName)}
-										class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none 
+										class="relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none
 											{inWhitelist ? 'bg-indigo-600' : 'bg-zinc-800'}"
 										role="switch"
 										aria-checked={inWhitelist}
 										aria-label="Kích hoạt tự phục hồi cho {cName}"
 									>
-										<span 
-											aria-hidden="true" 
+										<span
+											aria-hidden="true"
 											class="pointer-events-none inline-block h-4 w-4 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out
 												{inWhitelist ? 'translate-x-4' : 'translate-x-0'}"
 										></span>
@@ -393,12 +392,12 @@
 							<!-- Action Buttons -->
 							<div class="grid grid-cols-3 gap-2 mt-4 pt-3.5 border-t border-zinc-800/60">
 								<!-- START BUTTON -->
-								<button 
+								<button
 									onclick={() => handleContainerAction(cId, 'start')}
 									disabled={isRunning || actionLoading[cId]}
 									class="flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer select-none
-										{isRunning 
-											? 'bg-zinc-950 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50' 
+										{isRunning
+											? 'bg-zinc-950 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50'
 											: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20 hover:bg-emerald-600 hover:text-white hover:border-emerald-500'}"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
@@ -408,12 +407,12 @@
 								</button>
 
 								<!-- STOP BUTTON -->
-								<button 
+								<button
 									onclick={() => handleContainerAction(cId, 'stop')}
 									disabled={!isRunning || actionLoading[cId]}
 									class="flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold transition-all border cursor-pointer select-none
-										{!isRunning 
-											? 'bg-zinc-950 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50' 
+										{!isRunning
+											? 'bg-zinc-950 text-zinc-600 border-zinc-900 cursor-not-allowed opacity-50'
 											: 'bg-rose-500/10 text-rose-400 border-rose-500/20 hover:bg-rose-600 hover:text-white hover:border-rose-500'}"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
@@ -423,7 +422,7 @@
 								</button>
 
 								<!-- RESTART BUTTON -->
-								<button 
+								<button
 									onclick={() => handleContainerAction(cId, 'restart')}
 									disabled={actionLoading[cId]}
 									class="flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs font-semibold bg-zinc-900 hover:bg-zinc-800 text-zinc-300 border border-zinc-800 hover:border-zinc-700 transition-all cursor-pointer select-none disabled:opacity-50"
