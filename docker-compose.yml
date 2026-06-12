@@ -6,7 +6,7 @@ services:
     container_name: server-sentinel
     restart: unless-stopped
     ports:
-      - "8080:8080"
+      - "8081:8080"
     environment:
       - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
       - ALLOWED_AUTO_HEAL_CONTAINERS=${ALLOWED_AUTO_HEAL_CONTAINERS}

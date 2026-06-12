@@ -8,7 +8,7 @@
 	import ContainerCard from '$lib/components/ContainerCard.svelte';
 	import LogsModal from '$lib/components/LogsModal.svelte';
 
-	const API_BASE = 'http://localhost:8080/api';
+	const API_BASE = 'http://localhost:8081/api';
 
 	// Session state
 	let userSession = $state<{ email: string; name: string; picture: string; token: string } | null>(null);
@@ -117,7 +117,7 @@
 			errorMessage = '';
 		} catch (err: any) {
 			console.error(err);
-			errorMessage = 'Lỗi kết nối với Backend Sentinel (http://localhost:8080). Vui lòng kiểm tra xem server đã khởi động chưa.';
+			errorMessage = 'Lỗi kết nối với Backend Sentinel (http://localhost:8081). Vui lòng kiểm tra xem server đã khởi động chưa.';
 		} finally {
 			isLoading = false;
 		}

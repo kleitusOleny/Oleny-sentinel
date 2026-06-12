@@ -3,7 +3,7 @@
 const readline = require('readline');
 
 // Base API URL pointing to the Sentinel Spring Boot container
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = 'http://localhost:8081/api';
 
 const rl = readline.createInterface({
   input: process.stdin,
