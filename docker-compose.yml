@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   sentinel:
     build: .
@@ -7,12 +5,35 @@ services:
     restart: unless-stopped
     ports:
       - "8081:8080"
-    environment:
-      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
-      - ALLOWED_AUTO_HEAL_CONTAINERS=${ALLOWED_AUTO_HEAL_CONTAINERS}
     volumes:
       - /var/run/docker.sock:/var/run/docker.sock
       - ./config:/app/config
+    environment:
+      - DISCORD_WEBHOOK_URL=${DISCORD_WEBHOOK_URL}
+      - ALLOWED_AUTO_HEAL_CONTAINERS=${ALLOWED_AUTO_HEAL_CONTAINERS:-}
+      - MINIO_ENDPOINT=${MINIO_ENDPOINT:-http://minio:9000}
+      - MINIO_EXTERNAL_ENDPOINT=${MINIO_EXTERNAL_ENDPOINT:-http://localhost:9000}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-sentineladmin}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-sentinelpassword123}
+      - MINIO_BUCKET=${MINIO_BUCKET:-sentinel-files}
+    depends_on:
+      - minio
+
+  minio:
+    build:
+      context: ./minio
+      dockerfile: Dockerfile
+    container_name: server-sentinel-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    environment:
+      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY:-sentineladmin}
+      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY:-sentinelpassword123}
+    volumes:
+      - minio_data:/data
 
   frontend:
     build:
@@ -27,3 +48,6 @@ services:
       - BACKEND_URL=http://sentinel:8080/api
     depends_on:
       - sentinel
+
+volumes:
+  minio_data:
