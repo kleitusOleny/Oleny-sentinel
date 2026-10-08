@@ -9,11 +9,12 @@ export const fallback: RequestHandler = async ({ request, params }) => {
 	// Construct the destination URL
 	const destUrl = `${BACKEND_URL}/${params.path}${new URL(request.url).search}`;
 
-	// Forward headers (excluding Host)
+	// Forward headers (excluding Host, Connection, Expect, and Content-Length when streaming)
 	const headers = new Headers();
+	const ignoredHeaders = new Set(['host', 'connection', 'expect', 'content-length']);
 	// @ts-ignore
-    request.headers.forEach((value, key) => {
-		if (key.toLowerCase() !== 'host') {
+	request.headers.forEach((value, key) => {
+		if (!ignoredHeaders.has(key.toLowerCase())) {
 			headers.set(key, value);
 		}
 	});
