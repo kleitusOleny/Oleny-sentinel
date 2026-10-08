@@ -44,6 +44,11 @@
 	let deleteTarget = $state<FileItem | null>(null);
 	let isDeleting = $state(false);
 
+	// Direct IP Fast Upload Mode (Bypass Cloudflare Tunnel)
+	// Server Tailscale IP: 100.94.177.113:8081
+	let directUploadMode = $state(true);
+	let directBackendUrl = $state('http://100.94.177.113:8081/api');
+
 	// Derived: Breadcrumbs
 	let breadcrumbs = $derived.by(() => {
 		if (!currentPath) return [];
@@ -133,10 +138,12 @@
 		let lastLoaded = 0;
 		let lastTime = startTime;
 
+		let uploadTargetUrl = directUploadMode && directBackendUrl ? `${directBackendUrl}/storage/upload` : `${apiBase}/storage/upload`;
+
 		try {
 			await new Promise<void>((resolve, reject) => {
 				const xhr = new XMLHttpRequest();
-				xhr.open('POST', `${apiBase}/storage/upload`);
+				xhr.open('POST', uploadTargetUrl);
 
 				xhr.upload.onprogress = (event) => {
 					if (event.lengthComputable) {
@@ -342,6 +349,16 @@
 					Quay lại
 				</button>
 			{/if}
+
+			<!-- Direct IP Fast Upload Toggle -->
+			<button
+				onclick={() => (directUploadMode = !directUploadMode)}
+				class="px-2.5 py-1.5 rounded-xl border text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer {directUploadMode ? 'bg-emerald-950/40 border-emerald-500/40 text-emerald-300 shadow-sm shadow-emerald-950' : 'bg-zinc-800/60 border-zinc-700/50 text-zinc-400 hover:text-zinc-200'}"
+				title={directUploadMode ? 'Đang gửi trực tiếp đến IP 100.94.177.113:8081 (Tốc độ LAN/Tailscale tối đa)' : 'Đang gửi qua Cloudflare Tunnel'}
+			>
+				<span class="w-2 h-2 rounded-full {directUploadMode ? 'bg-emerald-400 animate-pulse' : 'bg-zinc-500'}"></span>
+				<span>{directUploadMode ? 'Gửi qua IP trực tiếp' : 'Gửi qua Tunnel'}</span>
+			</button>
 
 			<!-- New Folder Button -->
 			<button
