@@ -24,7 +24,9 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - ORIGIN=http://localhost:3000
+      - ORIGIN=${ORIGIN:-}
+      - PROTOCOL_HEADER=x-forwarded-proto
+      - HOST_HEADER=x-forwarded-host
       - BACKEND_URL=http://sentinel:8080/api
     depends_on:
       - sentinel
