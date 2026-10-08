@@ -246,4 +246,71 @@ public class FileStorageService {
             default: return "application/octet-stream";
         }
     }
+
+    /**
+     * Giải nén file ZIP hoặc RAR vào thư mục cùng cấp (hoặc thư mục con mang tên file)
+     */
+    public String extractArchive(String relativePath) throws IOException {
+        Path archiveFile = resolveAndVerify(relativePath);
+        if (!Files.exists(archiveFile) || Files.isDirectory(archiveFile)) {
+            throw new NoSuchFileException("Tệp nén không tồn tại: " + relativePath);
+        }
+
+        String filename = archiveFile.getFileName().toString();
+        String ext = getFileExtension(filename);
+        if (!"zip".equalsIgnoreCase(ext) && !"rar".equalsIgnoreCase(ext)) {
+            throw new IllegalArgumentException("Định dạng không được hỗ trợ. Chỉ hỗ trợ .zip và .rar");
+        }
+
+        // Tạo thư mục đích có tên là tên file (bỏ đuôi .zip/.rar) trong cùng thư mục cha
+        String folderName = filename;
+        int dot = filename.lastIndexOf('.');
+        if (dot > 0) {
+            folderName = filename.substring(0, dot);
+        }
+
+        Path targetDir = archiveFile.getParent().resolve(folderName);
+        if (!Files.exists(targetDir)) {
+            Files.createDirectories(targetDir);
+        }
+
+        if ("zip".equalsIgnoreCase(ext)) {
+            extractZip(archiveFile, targetDir);
+        } else {
+            extractRar(archiveFile, targetDir);
+        }
+
+        return rootStoragePath.relativize(targetDir).toString().replace("\\", "/");
+    }
+
+    private void extractZip(Path zipFile, Path targetDir) throws IOException {
+        try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(Files.newInputStream(zipFile))) {
+            java.util.zip.ZipEntry entry;
+            while ((entry = zis.getNextEntry()) != null) {
+                // Chống tấn công Zip Slip (Path Traversal bên trong file zip)
+                Path newPath = targetDir.resolve(entry.getName()).normalize();
+                if (!newPath.startsWith(targetDir)) {
+                    throw new SecurityException("Cảnh báo Zip Slip: File zip chứa đường dẫn vượt ngoài thư mục đích: " + entry.getName());
+                }
+
+                if (entry.isDirectory()) {
+                    Files.createDirectories(newPath);
+                } else {
+                    if (newPath.getParent() != null && !Files.exists(newPath.getParent())) {
+                        Files.createDirectories(newPath.getParent());
+                    }
+                    Files.copy(zis, newPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+                zis.closeEntry();
+            }
+        }
+    }
+
+    private void extractRar(Path rarFile, Path targetDir) throws IOException {
+        try {
+            com.github.junrar.Junrar.extract(rarFile.toFile(), targetDir.toFile());
+        } catch (com.github.junrar.exception.RarException e) {
+            throw new IOException("Lỗi khi giải nén tệp RAR: " + e.getMessage(), e);
+        }
+    }
 }

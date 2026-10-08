@@ -258,6 +258,38 @@
 		}
 	}
 
+	// Extraction states
+	let isExtracting = $state(false);
+	let extractTargetName = $state('');
+
+	function isArchive(ext: string): boolean {
+		const lower = ext.toLowerCase();
+		return lower === 'zip' || lower === 'rar';
+	}
+
+	async function handleExtractArchive(item: FileItem) {
+		if (isExtracting) return;
+		isExtracting = true;
+		extractTargetName = item.name;
+		try {
+			const res = await fetch(`${apiBase}/storage/extract`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: item.path })
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				throw new Error(data.message || 'Giải nén thất bại');
+			}
+			await loadDirectory(currentPath);
+		} catch (err: any) {
+			alert(`Lỗi giải nén: ${err.message}`);
+		} finally {
+			isExtracting = false;
+			extractTargetName = '';
+		}
+	}
+
 	function isPreviewable(ext: string): boolean {
 		const lower = ext.toLowerCase();
 		const textExts = ['txt', 'log', 'json', 'yml', 'yaml', 'xml', 'md', 'env', 'properties', 'js', 'ts', 'html', 'css', 'sh', 'sql', 'csv'];
@@ -514,11 +546,30 @@
 								<td class="py-3 px-4 text-right">
 									<div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
 										{#if !item.directory}
+											{#if isArchive(item.extension)}
+												<button
+													onclick={() => handleExtractArchive(item)}
+													disabled={isExtracting}
+													class="p-1.5 text-amber-400 hover:text-amber-300 hover:bg-amber-600/10 rounded-lg transition-colors cursor-pointer disabled:opacity-50"
+													title="Giải nén tệp zip/rar"
+												>
+													{#if isExtracting && extractTargetName === item.name}
+														<svg class="animate-spin w-4 h-4 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+															<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+															<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+														</svg>
+													{:else}
+														<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+															<path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+														</svg>
+													{/if}
+												</button>
+											{/if}
 											{#if isPreviewable(item.extension)}
 												<button
 													onclick={() => onpreview(item)}
 													class="p-1.5 text-zinc-400 hover:text-indigo-300 hover:bg-indigo-600/10 rounded-lg transition-colors cursor-pointer"
-													title="Xem trước logs/text"
+													title="Xem trước"
 												>
 													<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
 														<path stroke-linecap="round" stroke-linejoin="round" d="M2.036 12.322a1.012 1.012 0 0 1 0-.639C3.423 7.51 7.36 4.5 12 4.5c4.638 0 8.573 3.007 9.963 7.178.07.207.07.431 0 .639C20.577 16.49 16.64 19.5 12 19.5c-4.638 0-8.573-3.007-9.964-7.178Z" />
@@ -591,6 +642,25 @@
 					<!-- Quick Action Hover Menu -->
 					<div class="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-center gap-2">
 						{#if !item.directory}
+							{#if isArchive(item.extension)}
+								<button
+									onclick={() => handleExtractArchive(item)}
+									disabled={isExtracting}
+									class="p-1 text-amber-400 hover:text-amber-300 rounded cursor-pointer disabled:opacity-50"
+									title="Giải nén tệp zip/rar"
+								>
+									{#if isExtracting && extractTargetName === item.name}
+										<svg class="animate-spin w-3.5 h-3.5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+											<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+											<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+										</svg>
+									{:else}
+										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+											<path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+										</svg>
+									{/if}
+								</button>
+							{/if}
 							{#if isPreviewable(item.extension)}
 								<button
 									onclick={() => onpreview(item)}

@@ -163,4 +163,28 @@ public class FileStorageController {
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
+
+    /**
+     * Giải nén file ZIP hoặc RAR
+     * POST /api/storage/extract
+     */
+    @PostMapping("/extract")
+    public ResponseEntity<?> extractFile(@RequestBody Map<String, String> payload) {
+        String path = payload.get("path");
+        if (path == null || path.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Đường dẫn tệp nén không được để trống."));
+        }
+        try {
+            String extractedTo = fileStorageService.extractArchive(path);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Đã giải nén tệp thành công.",
+                    "extractedTo", extractedTo
+            ));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Lỗi giải nén: " + e.getMessage()));
+        }
+    }
 }

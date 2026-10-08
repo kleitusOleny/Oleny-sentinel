@@ -34,6 +34,9 @@ dependencies {
     
     // Discord Bot JDA library
     implementation("net.dv8tion:JDA:5.0.0")
+
+    // RAR archive extraction
+    implementation("com.github.junrar:junrar:7.5.5")
 }
 
 tasks.withType<Test> {
