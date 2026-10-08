@@ -399,12 +399,16 @@ public class FileStorageService {
 
         Files.createDirectories(hlsDir);
 
-        // Chạy ffmpeg cắt nhỏ thành các segment 4 giây
+        // Đường dẫn tương đối cho các segment để trình duyệt gọi đúng endpoint API
+        String segmentBaseUrl = "/api/storage/hls/segment?path=" + java.net.URLEncoder.encode(relativeVideoPath, java.nio.charset.StandardCharsets.UTF_8).replaceAll("\\+", "%20") + "&seg=";
+
+        // Chạy ffmpeg cắt nhỏ thành các segment 4 giây và nhúng base url
         ProcessBuilder pb = new ProcessBuilder(
                 "ffmpeg", "-i", videoFile.toAbsolutePath().toString(),
                 "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
                 "-hls_time", "4",
                 "-hls_list_size", "0",
+                "-hls_base_url", segmentBaseUrl,
                 "-hls_segment_filename", hlsDir.resolve("segment_%03d.ts").toAbsolutePath().toString(),
                 playlist.toAbsolutePath().toString()
         );
@@ -419,6 +423,7 @@ public class FileStorageService {
                     "-c:a", "aac", "-b:a", "128k",
                     "-hls_time", "4",
                     "-hls_list_size", "0",
+                    "-hls_base_url", segmentBaseUrl,
                     "-hls_segment_filename", hlsDir.resolve("segment_%03d.ts").toAbsolutePath().toString(),
                     playlist.toAbsolutePath().toString()
             );

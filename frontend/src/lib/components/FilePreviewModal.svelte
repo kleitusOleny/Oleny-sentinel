@@ -41,10 +41,12 @@
 		if (isVideo && videoRef && previewItem) {
 			const hlsPlaylistUrl = `/api/storage/hls/playlist?path=${encodeURIComponent(previewItem.path)}`;
 
-			if (Hls.isSupported() && useHls) {
-				if (hlsInstance) {
-					hlsInstance.destroy();
-				}
+			if (hlsInstance) {
+				hlsInstance.destroy();
+				hlsInstance = null;
+			}
+
+			if (useHls && Hls.isSupported()) {
 				hlsInstance = new Hls({
 					enableWorker: true,
 					lowLatencyMode: true
@@ -53,15 +55,11 @@
 				hlsInstance.attachMedia(videoRef);
 				hlsInstance.on(Hls.Events.ERROR, (_, data) => {
 					if (data.fatal) {
-						console.warn('HLS Fatal Error, fallback sang mp4 trực tiếp:', data);
-						if (videoRef) {
-							videoRef.src = previewUrl;
-							videoRef.play().catch(() => {});
-						}
+						console.warn('HLS stream không phản hồi, tự động chuyển về MP4 trực tiếp:', data);
+						useHls = false;
 					}
 				});
-			} else if (videoRef.canPlayType('application/vnd.apple.mpegurl')) {
-				// Hỗ trợ Safari native HLS
+			} else if (useHls && videoRef.canPlayType('application/vnd.apple.mpegurl')) {
 				videoRef.src = hlsPlaylistUrl;
 			} else {
 				videoRef.src = previewUrl;
@@ -109,6 +107,17 @@
 				</div>
 
 				<div class="flex items-center gap-2 shrink-0">
+					{#if isVideo}
+						<button
+							onclick={() => (useHls = !useHls)}
+							class="px-2.5 py-1.5 rounded-xl text-xs font-semibold border transition-all cursor-pointer flex items-center gap-1.5 {useHls ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' : 'bg-zinc-800 text-zinc-400 border-zinc-700'}"
+							title={useHls ? 'Đang dùng luồng HLS phân đoạn siêu nhẹ (kiểu YouTube). Bấm để đổi sang MP4 trực tiếp' : 'Đang dùng phát MP4 trực tiếp. Bấm để bật HLS'}
+						>
+							<span class="w-2 h-2 rounded-full {useHls ? 'bg-indigo-400 animate-pulse' : 'bg-zinc-500'}"></span>
+							<span>{useHls ? 'HLS Stream' : 'MP4 Gốc'}</span>
+						</button>
+					{/if}
+
 					<button
 						onclick={ondownload}
 						class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer border border-zinc-700/60"
