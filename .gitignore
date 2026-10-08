@@ -43,3 +43,4 @@ out/
 src/main/resources/.env
 
 /config/
+data/
