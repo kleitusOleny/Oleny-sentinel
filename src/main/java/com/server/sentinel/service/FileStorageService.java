@@ -283,6 +283,164 @@ public class FileStorageService {
         return rootStoragePath.relativize(targetDir).toString().replace("\\", "/");
     }
 
+    /**
+     * Lấy danh sách các chunk đã tải lên thành công của một uploadId
+     */
+    public List<Integer> getUploadedChunks(String uploadId) {
+        String cleanId = uploadId.replaceAll("[^a-zA-Z0-9_-]", "");
+        Path chunkDir = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_chunks", cleanId);
+        if (!Files.exists(chunkDir)) {
+            return Collections.emptyList();
+        }
+
+        List<Integer> chunks = new ArrayList<>();
+        try (Stream<Path> stream = Files.list(chunkDir)) {
+            stream.forEach(p -> {
+                String name = p.getFileName().toString();
+                if (name.endsWith(".part")) {
+                    try {
+                        int idx = Integer.parseInt(name.replace(".part", ""));
+                        chunks.add(idx);
+                    } catch (NumberFormatException ignored) {}
+                }
+            });
+        } catch (IOException e) {
+            log.error("Lỗi khi đọc danh sách chunk {}: {}", uploadId, e.getMessage());
+        }
+        Collections.sort(chunks);
+        return chunks;
+    }
+
+    /**
+     * Lưu 1 chunk của file vào thư mục tạm
+     */
+    public void saveChunk(String uploadId, int chunkIndex, MultipartFile file) throws IOException {
+        String cleanId = uploadId.replaceAll("[^a-zA-Z0-9_-]", "");
+        Path chunkDir = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_chunks", cleanId);
+        if (!Files.exists(chunkDir)) {
+            Files.createDirectories(chunkDir);
+        }
+
+        Path chunkFile = chunkDir.resolve(chunkIndex + ".part");
+        file.transferTo(chunkFile.toFile());
+    }
+
+    /**
+     * Ghép toàn bộ chunk lại thành file hoàn chỉnh
+     */
+    public void mergeChunks(String uploadId, int totalChunks, String targetPath, String fileName) throws IOException {
+        String cleanId = uploadId.replaceAll("[^a-zA-Z0-9_-]", "");
+        Path chunkDir = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_chunks", cleanId);
+        if (!Files.exists(chunkDir)) {
+            throw new NoSuchFileException("Không tìm thấy dữ liệu chunk cho uploadId: " + uploadId);
+        }
+
+        Path targetDir = resolveAndVerify(targetPath);
+        if (!Files.exists(targetDir)) {
+            Files.createDirectories(targetDir);
+        }
+
+        Path finalFile = targetDir.resolve(fileName);
+        try (java.io.OutputStream out = new java.io.BufferedOutputStream(Files.newOutputStream(finalFile, StandardOpenOption.CREATE, StandardOpenOption.TRUNCATE_EXISTING, StandardOpenOption.WRITE))) {
+            for (int i = 0; i < totalChunks; i++) {
+                Path partFile = chunkDir.resolve(i + ".part");
+                if (!Files.exists(partFile)) {
+                    throw new IOException("Thiếu chunk số " + i + " để ghép file.");
+                }
+                Files.copy(partFile, out);
+            }
+        }
+
+        // Xóa dọn dẹp thư mục chunk tạm
+        try (Stream<Path> stream = Files.walk(chunkDir)) {
+            stream.sorted(Comparator.reverseOrder()).forEach(p -> {
+                try {
+                    Files.deleteIfExists(p);
+                } catch (IOException ignored) {}
+            });
+        }
+    }
+
+    /**
+     * Hủy phiên upload chunk và xóa file tạm
+     */
+    public void cancelChunkUpload(String uploadId) {
+        String cleanId = uploadId.replaceAll("[^a-zA-Z0-9_-]", "");
+        Path chunkDir = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_chunks", cleanId);
+        if (Files.exists(chunkDir)) {
+            try (Stream<Path> stream = Files.walk(chunkDir)) {
+                stream.sorted(Comparator.reverseOrder()).forEach(p -> {
+                    try {
+                        Files.deleteIfExists(p);
+                    } catch (IOException ignored) {}
+                });
+            } catch (IOException e) {
+                log.error("Lỗi khi xóa chunk tạm {}: {}", uploadId, e.getMessage());
+            }
+        }
+    }
+
+    /**
+     * Chuyển đổi và chuẩn bị HLS streaming cho video nếu chưa có
+     */
+    public Path prepareHlsStream(String relativeVideoPath) throws IOException, InterruptedException {
+        Path videoFile = resolveAndVerify(relativeVideoPath);
+        if (!Files.exists(videoFile) || Files.isDirectory(videoFile)) {
+            throw new NoSuchFileException("Không tìm thấy tệp video: " + relativeVideoPath);
+        }
+
+        String videoHash = Integer.toHexString((relativeVideoPath + "_" + Files.size(videoFile)).hashCode());
+        Path hlsDir = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_hls", videoHash);
+        Path playlist = hlsDir.resolve("playlist.m3u8");
+
+        if (Files.exists(playlist)) {
+            return playlist;
+        }
+
+        Files.createDirectories(hlsDir);
+
+        // Chạy ffmpeg cắt nhỏ thành các segment 4 giây
+        ProcessBuilder pb = new ProcessBuilder(
+                "ffmpeg", "-i", videoFile.toAbsolutePath().toString(),
+                "-c:v", "copy", "-c:a", "aac", "-b:a", "128k",
+                "-hls_time", "4",
+                "-hls_list_size", "0",
+                "-hls_segment_filename", hlsDir.resolve("segment_%03d.ts").toAbsolutePath().toString(),
+                playlist.toAbsolutePath().toString()
+        );
+        pb.redirectErrorStream(true);
+        Process process = pb.start();
+        int exitCode = process.waitFor();
+        if (exitCode != 0 || !Files.exists(playlist)) {
+            // Thử encode lại nếu codec video copy không khớp
+            ProcessBuilder fallbackPb = new ProcessBuilder(
+                    "ffmpeg", "-i", videoFile.toAbsolutePath().toString(),
+                    "-c:v", "libx264", "-preset", "ultrafast", "-crf", "23",
+                    "-c:a", "aac", "-b:a", "128k",
+                    "-hls_time", "4",
+                    "-hls_list_size", "0",
+                    "-hls_segment_filename", hlsDir.resolve("segment_%03d.ts").toAbsolutePath().toString(),
+                    playlist.toAbsolutePath().toString()
+            );
+            Process fallbackProcess = fallbackPb.start();
+            int fallbackExit = fallbackProcess.waitFor();
+            if (fallbackExit != 0 || !Files.exists(playlist)) {
+                throw new IOException("Lỗi khi xử lý HLS bằng ffmpeg (mã thoát: " + fallbackExit + ")");
+            }
+        }
+
+        return playlist;
+    }
+
+    public Resource loadHlsSegment(String relativeVideoPath, String segmentName) throws MalformedURLException {
+        Path videoFile = resolveAndVerify(relativeVideoPath);
+        long size = 0;
+        try { size = Files.size(videoFile); } catch (Exception ignored) {}
+        String videoHash = Integer.toHexString((relativeVideoPath + "_" + size).hashCode());
+        Path segmentPath = Paths.get(System.getProperty("java.io.tmpdir"), "sentinel_hls", videoHash, segmentName);
+        return new UrlResource(segmentPath.toUri());
+    }
+
     private void extractZip(Path zipFile, Path targetDir) throws IOException {
         try (java.util.zip.ZipInputStream zis = new java.util.zip.ZipInputStream(Files.newInputStream(zipFile))) {
             java.util.zip.ZipEntry entry;

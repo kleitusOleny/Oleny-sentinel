@@ -11,6 +11,8 @@
 	import FileManagerTab from '$lib/components/FileManagerTab.svelte';
 	import FilePreviewModal from '$lib/components/FilePreviewModal.svelte';
 	import QrScanModal from '$lib/components/QrScanModal.svelte';
+	import TransferQueueFloatingButton from '$lib/components/TransferQueueFloatingButton.svelte';
+	import { transferQueue } from '$lib/stores/transferQueue.svelte';
 
 	const API_BASE = '/api';
 
@@ -80,14 +82,9 @@
 		}
 	}
 
-	function handleDownloadFile(item: { name: string; path: string }) {
-		const downloadUrl = `${API_BASE}/storage/download?path=${encodeURIComponent(item.path)}`;
-		const a = document.createElement('a');
-		a.href = downloadUrl;
-		a.download = item.name;
-		document.body.appendChild(a);
-		a.click();
-		document.body.removeChild(a);
+	function handleDownloadFile(item: { name: string; path: string; size?: number }) {
+		transferQueue.addDownload(item.name, item.path, item.size || 0, API_BASE);
+		transferQueue.setOpen(true);
 	}
 
 	// Historical metrics stats
@@ -598,6 +595,9 @@
 				<span>{notificationToast}</span>
 			</div>
 		{/if}
+
+		<!-- TRANSFER QUEUE FLOATING BUTTON -->
+		<TransferQueueFloatingButton apiBase={API_BASE} />
 	</div>
 {/if}
 

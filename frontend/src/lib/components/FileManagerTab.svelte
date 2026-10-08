@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
+	import { transferQueue } from '$lib/stores/transferQueue.svelte';
 
 	interface FileItem {
 		name: string;
@@ -26,13 +27,6 @@
 	let errorMessage = $state('');
 	let viewMode = $state<'table' | 'grid'>('table');
 	let searchQuery = $state('');
-
-	// Upload states
-	let isUploading = $state(false);
-	let uploadProgress = $state(0); // 0 - 100%
-	let uploadSpeedText = $state(''); // e.g. 1.2 MB/s
-	let uploadSizeText = $state(''); // e.g. 1.2 MB / 2.0 MB
-	let uploadStatusText = $state('');
 	let fileInputRef: HTMLInputElement;
 
 	// New Folder Dialog
@@ -46,7 +40,7 @@
 
 	// Direct IP Fast Upload Mode (Bypass Cloudflare Tunnel)
 	// Server Tailscale IP: 100.94.177.113:8081
-	let directUploadMode = $state(true);
+	let directUploadMode = $state(false);
 	let directBackendUrl = $state('http://100.94.177.113:8081/api');
 
 	// Derived: Breadcrumbs
@@ -117,99 +111,20 @@
 		loadDirectory(parentPath);
 	}
 
-	async function handleUploadFiles(e: Event) {
+	function handleUploadFiles(e: Event) {
 		const target = e.target as HTMLInputElement;
 		if (!target.files || target.files.length === 0) return;
 
 		const filesToUpload = Array.from(target.files);
-		isUploading = true;
-		uploadProgress = 0;
-		uploadSpeedText = '0 KB/s';
-		uploadSizeText = '0 B';
-		uploadStatusText = `Chuẩn bị tải lên ${filesToUpload.length} tệp...`;
+		// Đưa toàn bộ file vào Hàng đợi (Queue) không chặn giao diện
+		const uploadTargetBase = directUploadMode && directBackendUrl ? directBackendUrl : apiBase;
+		transferQueue.addUploads(filesToUpload, currentPath, uploadTargetBase);
 
-		const formData = new FormData();
-		formData.append('path', currentPath);
-		for (const file of filesToUpload) {
-			formData.append('file', file);
-		}
+		// Tự động mở popover Queue để người dùng thấy tiến trình
+		transferQueue.setOpen(true);
 
-		let startTime = Date.now();
-		let lastLoaded = 0;
-		let lastTime = startTime;
-
-		let uploadTargetUrl = directUploadMode && directBackendUrl ? `${directBackendUrl}/storage/upload` : `${apiBase}/storage/upload`;
-
-		try {
-			await new Promise<void>((resolve, reject) => {
-				const xhr = new XMLHttpRequest();
-				xhr.open('POST', uploadTargetUrl);
-
-				xhr.upload.onprogress = (event) => {
-					if (event.lengthComputable) {
-						const now = Date.now();
-						const percent = Math.round((event.loaded / event.total) * 100);
-						uploadProgress = percent;
-						uploadSizeText = `${formatBytes(event.loaded)} / ${formatBytes(event.total)}`;
-
-						// Tính tốc độ trung bình theo khoảng thời gian
-						const timeDiff = (now - lastTime) / 1000;
-						if (timeDiff >= 0.3 || event.loaded === event.total) {
-							const bytesDiff = event.loaded - lastLoaded;
-							const speedBytesPerSec = timeDiff > 0 ? bytesDiff / timeDiff : 0;
-							uploadSpeedText = `${formatBytes(speedBytesPerSec)}/s`;
-							lastLoaded = event.loaded;
-							lastTime = now;
-						}
-
-						if (percent < 100) {
-							uploadStatusText = `Đang tải lên (${percent}%)...`;
-						} else {
-							uploadStatusText = 'Đang lưu tệp vào máy chủ...';
-						}
-					}
-				};
-
-				xhr.onload = () => {
-					if (xhr.status >= 200 && xhr.status < 300) {
-						try {
-							const data = JSON.parse(xhr.responseText);
-							if (data.status === 'error') {
-								reject(new Error(data.message || 'Lỗi xử lý tệp trên máy chủ'));
-							} else {
-								resolve();
-							}
-						} catch (jsonErr) {
-							resolve();
-						}
-					} else {
-						try {
-							const data = JSON.parse(xhr.responseText);
-							reject(new Error(data.message || `Lỗi tải lên: mã phản hồi ${xhr.status}`));
-						} catch {
-							reject(new Error(`Tải lên thất bại: mã phản hồi ${xhr.status}`));
-						}
-					}
-				};
-
-				xhr.onerror = () => {
-					reject(new Error('Mất kết nối mạng hoặc server không phản hồi'));
-				};
-
-				xhr.send(formData);
-			});
-
-			await loadDirectory(currentPath);
-		} catch (err: any) {
-			alert(`Lỗi upload: ${err.message}`);
-		} finally {
-			isUploading = false;
-			uploadProgress = 0;
-			uploadSpeedText = '';
-			uploadSizeText = '';
-			uploadStatusText = '';
-			target.value = '';
-		}
+		// Reset input để người dùng có thể chọn lại cùng 1 file nếu muốn
+		target.value = '';
 	}
 
 	async function handleCreateFolder() {
@@ -405,7 +320,7 @@
 				Thư mục mới
 			</button>
 
-			<!-- Upload Button -->
+			<!-- Upload Button (Always Enabled, adds to queue) -->
 			<input
 				type="file"
 				multiple
@@ -415,62 +330,16 @@
 			/>
 			<button
 				onclick={() => fileInputRef.click()}
-				disabled={isUploading}
-				class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50 disabled:opacity-50"
+				class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50 hover:scale-105 active:scale-95"
+				title="Thêm tệp tin vào hàng đợi tải lên"
 			>
-				{#if isUploading}
-					<svg class="animate-spin -ml-0.5 mr-1 h-3.5 w-3.5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-						<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
-						<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-					</svg>
-					Đang tải lên...
-				{:else}
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-					</svg>
-					Tải lên
-				{/if}
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
+				</svg>
+				Tải lên
 			</button>
 		</div>
 	</div>
-
-	<!-- UPLOAD PROGRESS CARD (WITH SPEED & PERCENTAGE) -->
-	{#if isUploading}
-		<div class="bg-zinc-900/80 border border-indigo-500/30 rounded-2xl p-4 shadow-xl backdrop-blur-md animate-fadeIn">
-			<div class="flex items-center justify-between mb-2">
-				<div class="flex items-center gap-2">
-					<div class="p-1.5 rounded-lg bg-indigo-500/10 text-indigo-400">
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 animate-bounce">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
-						</svg>
-					</div>
-					<div>
-						<div class="text-xs font-bold text-zinc-200">{uploadStatusText}</div>
-						<div class="text-[11px] text-zinc-400 font-mono mt-0.5">{uploadSizeText}</div>
-					</div>
-				</div>
-				<div class="text-right">
-					<div class="text-xs font-bold text-indigo-400 font-mono">{uploadProgress}%</div>
-					{#if uploadSpeedText}
-						<div class="text-[11px] text-emerald-400 font-mono font-medium flex items-center justify-end gap-1 mt-0.5">
-							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3 h-3">
-								<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 13.5l10.5-11.25L12 10.5h8.25L9.75 21.75 12 13.5H3.75z" />
-							</svg>
-							{uploadSpeedText}
-						</div>
-					{/if}
-				</div>
-			</div>
-
-			<!-- Progress bar track -->
-			<div class="w-full bg-zinc-950 rounded-full h-2 overflow-hidden border border-zinc-800">
-				<div
-					class="bg-gradient-to-r from-indigo-500 to-indigo-400 h-2 rounded-full transition-all duration-150 ease-out shadow-sm shadow-indigo-500/50"
-					style="width: {uploadProgress}%"
-				></div>
-			</div>
-		</div>
-	{/if}
 
 	<!-- ERROR BANNER -->
 	{#if errorMessage}

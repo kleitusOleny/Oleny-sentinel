@@ -1,4 +1,7 @@
 <script lang="ts">
+	import { onMount, onDestroy } from 'svelte';
+	import Hls from 'hls.js';
+
 	interface Props {
 		previewItem: { name: string; path: string; size: number } | null;
 		previewContent: string;
@@ -9,6 +12,10 @@
 	}
 
 	let { previewItem, previewContent, previewUrl, isPreviewLoading, onclose, ondownload }: Props = $props();
+
+	let videoRef: HTMLVideoElement | null = $state(null);
+	let hlsInstance: Hls | null = null;
+	let useHls = $state(true);
 
 	function formatBytes(bytes: number, decimals = 1): string {
 		if (bytes === 0) return '0 B';
@@ -29,6 +36,45 @@
 	let isVideo = $derived(['mp4', 'webm', 'ogg', 'mov', 'mkv'].includes(fileExt));
 	let isAudio = $derived(['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(fileExt));
 	let isPdf = $derived(fileExt === 'pdf');
+
+	$effect(() => {
+		if (isVideo && videoRef && previewItem) {
+			const hlsPlaylistUrl = `/api/storage/hls/playlist?path=${encodeURIComponent(previewItem.path)}`;
+
+			if (Hls.isSupported() && useHls) {
+				if (hlsInstance) {
+					hlsInstance.destroy();
+				}
+				hlsInstance = new Hls({
+					enableWorker: true,
+					lowLatencyMode: true
+				});
+				hlsInstance.loadSource(hlsPlaylistUrl);
+				hlsInstance.attachMedia(videoRef);
+				hlsInstance.on(Hls.Events.ERROR, (_, data) => {
+					if (data.fatal) {
+						console.warn('HLS Fatal Error, fallback sang mp4 trực tiếp:', data);
+						if (videoRef) {
+							videoRef.src = previewUrl;
+							videoRef.play().catch(() => {});
+						}
+					}
+				});
+			} else if (videoRef.canPlayType('application/vnd.apple.mpegurl')) {
+				// Hỗ trợ Safari native HLS
+				videoRef.src = hlsPlaylistUrl;
+			} else {
+				videoRef.src = previewUrl;
+			}
+		}
+
+		return () => {
+			if (hlsInstance) {
+				hlsInstance.destroy();
+				hlsInstance = null;
+			}
+		};
+	});
 </script>
 
 {#if previewItem}
@@ -104,13 +150,14 @@
 						/>
 					</div>
 				{:else if isVideo}
-					<!-- Video Player -->
+					<!-- Video Player (HLS Streaming YouTube-Style) -->
 					<div class="w-full h-full flex items-center justify-center p-2">
 						<!-- svelte-ignore a11y_media_has_caption -->
 						<video 
-							src={previewUrl} 
+							bind:this={videoRef}
 							controls 
 							autoplay 
+							playsinline
 							class="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-zinc-800 bg-black outline-none"
 						></video>
 					</div>
