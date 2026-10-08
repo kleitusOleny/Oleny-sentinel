@@ -19,12 +19,18 @@ export const fallback: RequestHandler = async ({ request, params }) => {
 	});
 
 	try {
+		// Forward request body as stream without buffering in memory
+		let reqBody: any = undefined;
+		if (request.method !== 'GET' && request.method !== 'HEAD') {
+			reqBody = request.body;
+		}
+
 		// Fetch from the backend
 		const response = await fetch(destUrl, {
 			method: request.method,
 			headers,
-			body: request.method !== 'GET' && request.method !== 'HEAD' ? await request.arrayBuffer() : undefined,
-			duplex: 'half' // required when forwarding body in node
+			body: reqBody,
+			duplex: 'half' // required when forwarding stream body in node fetch
 		} as any);
 
 		// Copy response headers
