@@ -51,4 +51,59 @@ public class AuthController {
             return Map.of("status", "error", "message", e.getMessage());
         }
     }
+
+    /**
+     * Tạo mã phiên đăng nhập QR (cho Desktop hiển thị)
+     * GET /api/auth/qr/generate
+     */
+    @GetMapping("/qr/generate")
+    public Map<String, Object> generateQr() {
+        String code = authService.createQrSession();
+        return Map.of("status", "success", "code", code);
+    }
+
+    /**
+     * Kiểm tra trạng thái mã QR (Desktop định kỳ poll)
+     * GET /api/auth/qr/status?code=...
+     */
+    @GetMapping("/qr/status")
+    public Map<String, Object> checkQrStatus(@RequestParam("code") String code) {
+        AuthService.QrSession session = authService.getQrSession(code);
+        if (session == null) {
+            return Map.of("status", "expired", "message", "Mã QR đã hết hạn");
+        }
+        if (session.approved) {
+            return Map.of(
+                "status", "approved",
+                "email", session.email,
+                "name", session.name != null ? session.name : session.email,
+                "picture", session.picture != null ? session.picture : "",
+                "token", session.token
+            );
+        }
+        return Map.of("status", "pending");
+    }
+
+    /**
+     * Điện thoại (đã đăng nhập) quét mã QR và phê duyệt đăng nhập cho Desktop
+     * POST /api/auth/qr/approve
+     */
+    @PostMapping("/qr/approve")
+    public Map<String, Object> approveQr(@RequestBody Map<String, String> payload) {
+        String code = payload.get("code");
+        String email = payload.get("email");
+        String name = payload.get("name");
+        String picture = payload.get("picture");
+        String token = payload.get("token");
+
+        if (code == null || email == null) {
+            return Map.of("status", "error", "message", "Thiếu thông tin xác thực");
+        }
+
+        boolean approved = authService.approveQrSession(code, email, name, picture, token != null ? token : "sentinel-qr-" + System.currentTimeMillis());
+        if (!approved) {
+            return Map.of("status", "error", "message", "Mã QR không hợp lệ hoặc tài khoản không có quyền.");
+        }
+        return Map.of("status", "success", "message", "Đã xác nhận đăng nhập thành công cho thiết bị!");
+    }
 }

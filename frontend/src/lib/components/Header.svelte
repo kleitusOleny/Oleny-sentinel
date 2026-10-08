@@ -1,14 +1,12 @@
-﻿<script lang="ts">
+<script lang="ts">
 	interface Props {
 		title: string;
 		subtitle: string;
-		autoRefresh: boolean;
 		isLoading: boolean;
 		onrefresh: () => void;
-		updateAutoRefresh: (val: boolean) => void;
 	}
 
-	let { title, subtitle, autoRefresh, isLoading, onrefresh, updateAutoRefresh }: Props = $props();
+	let { title, subtitle, isLoading, onrefresh }: Props = $props();
 </script>
 
 <header class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-5 shadow-xl">
@@ -20,16 +18,11 @@
 	</div>
 
 	<div class="flex items-center gap-3 w-full sm:w-auto justify-end">
-		<!-- Auto Refresh Checkbox -->
-		<label class="flex items-center gap-2 text-xs sm:text-sm text-zinc-400 cursor-pointer bg-zinc-900 border border-zinc-800 px-3.5 py-2 rounded-xl hover:border-zinc-700 select-none">
-			<input 
-				type="checkbox" 
-				checked={autoRefresh} 
-				onchange={(e) => updateAutoRefresh(e.currentTarget.checked)}
-				class="rounded border-zinc-800 text-indigo-600 focus:ring-indigo-500 bg-zinc-950 w-4 h-4 cursor-pointer" 
-			/>
+		<!-- Live indicator -->
+		<div class="flex items-center gap-2 text-xs text-zinc-400 bg-zinc-900 border border-zinc-800 px-3.5 py-2 rounded-xl select-none">
+			<span class="w-2 h-2 rounded-full bg-emerald-400 animate-pulse"></span>
 			<span>Tự động cập nhật (5s)</span>
-		</label>
+		</div>
 
 		<!-- Force Refresh Button -->
 		<button

@@ -94,4 +94,56 @@ public class AuthService {
             throw new Exception("Loi khi goi Google API xac thuc Token: " + e.getMessage());
         }
     }
+
+    // QR Code Login Management (Store pending sessions for 5 minutes)
+    public static class QrSession {
+        public String code;
+        public long createdAt;
+        public boolean approved;
+        public String email;
+        public String name;
+        public String picture;
+        public String token;
+
+        public QrSession(String code) {
+            this.code = code;
+            this.createdAt = System.currentTimeMillis();
+            this.approved = false;
+        }
+    }
+
+    private final Map<String, QrSession> qrSessions = new java.util.concurrent.ConcurrentHashMap<>();
+
+    public String createQrSession() {
+        // Xóa các session cũ quá 5 phút
+        long now = System.currentTimeMillis();
+        qrSessions.entrySet().removeIf(e -> now - e.getValue().createdAt > 300000);
+
+        String code = "qr-" + java.util.UUID.randomUUID().toString();
+        qrSessions.put(code, new QrSession(code));
+        return code;
+    }
+
+    public QrSession getQrSession(String code) {
+        if (code == null) return null;
+        QrSession session = qrSessions.get(code);
+        if (session != null && System.currentTimeMillis() - session.createdAt > 300000) {
+            qrSessions.remove(code);
+            return null;
+        }
+        return session;
+    }
+
+    public boolean approveQrSession(String code, String email, String name, String picture, String token) {
+        QrSession session = getQrSession(code);
+        if (session == null || !isEmailAllowed(email)) {
+            return false;
+        }
+        session.approved = true;
+        session.email = email;
+        session.name = name;
+        session.picture = picture;
+        session.token = token;
+        return true;
+    }
 }

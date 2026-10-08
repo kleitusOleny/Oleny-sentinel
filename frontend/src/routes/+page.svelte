@@ -10,6 +10,7 @@
 	import LogsModal from '$lib/components/LogsModal.svelte';
 	import FileManagerTab from '$lib/components/FileManagerTab.svelte';
 	import FilePreviewModal from '$lib/components/FilePreviewModal.svelte';
+	import QrScanModal from '$lib/components/QrScanModal.svelte';
 
 	const API_BASE = '/api';
 
@@ -18,7 +19,9 @@
 
 	// Navigation & Layout states
 	let sidebarCollapsed = $state(false);
-	let activeTab = $state('overview'); // 'overview' | 'containers' | 'settings'
+	let activeTab = $state('overview'); // 'overview' | 'containers' | 'settings' | 'files'
+	let isQrScanModalOpen = $state(false);
+	let notificationToast = $state('');
 
 	// Reactive states (Svelte 5 runes)
 	let containers = $state<any[]>([]);
@@ -324,7 +327,7 @@
 	<!-- MAIN DASHBOARD WITH COLLAPSIBLE SIDEBAR LAYOUT -->
 	<div class="flex h-screen bg-zinc-950 text-zinc-50 font-sans selection:bg-indigo-500 selection:text-white overflow-hidden">
 
-		<!-- COLLAPSIBLE SIDEBAR -->
+		<!-- COLLAPSIBLE SIDEBAR & MOBILE BOTTOM BAR -->
 		<Sidebar
 			collapsed={sidebarCollapsed}
 			activeTab={activeTab}
@@ -334,20 +337,19 @@
 			ontoggleCollapse={() => (sidebarCollapsed = !sidebarCollapsed)}
 			onselectTab={(tab) => (activeTab = tab)}
 			onlogout={handleLogout}
+			onopenQrScan={() => (isQrScanModalOpen = true)}
 		/>
 
 		<!-- MAIN CONTENT WRAPPER -->
-		<main class="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900/40">
+		<main class="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900/40 pb-20 md:pb-8">
 			<div class="p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto animate-fadeIn">
 
 				<!-- TOP DYNAMIC HEADER -->
 				<Header
 					title={tabTitle}
 					subtitle={tabSubtitle}
-					autoRefresh={autoRefresh}
 					isLoading={isLoading}
 					onrefresh={fetchData}
-					updateAutoRefresh={(val) => (autoRefresh = val)}
 				/>
 
 				<!-- ERROR ALERT BANNER -->
@@ -572,6 +574,29 @@
 				onclose={() => (activePreviewItem = null)}
 				ondownload={() => activePreviewItem && handleDownloadFile(activePreviewItem)}
 			/>
+		{/if}
+
+		<!-- QR SCANNER MODAL (MOBILE) -->
+		{#if isQrScanModalOpen && userSession}
+			<QrScanModal
+				user={userSession}
+				apiBase={API_BASE}
+				onclose={() => (isQrScanModalOpen = false)}
+				onsuccess={(msg: string) => {
+					notificationToast = msg;
+					setTimeout(() => (notificationToast = ''), 4000);
+				}}
+			/>
+		{/if}
+
+		<!-- TOAST NOTIFICATION -->
+		{#if notificationToast}
+			<div class="fixed top-6 left-1/2 -translate-x-1/2 z-50 bg-emerald-500/90 text-white font-bold text-xs px-5 py-3 rounded-2xl shadow-2xl backdrop-blur-md border border-emerald-400 flex items-center gap-2 animate-bounce">
+				<svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2.5">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M5 13l4 4L19 7" />
+				</svg>
+				<span>{notificationToast}</span>
+			</div>
 		{/if}
 	</div>
 {/if}

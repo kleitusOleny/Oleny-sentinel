@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	interface Props {
 		collapsed: boolean;
 		activeTab: string;
@@ -8,6 +8,7 @@
 		ontoggleCollapse: () => void;
 		onselectTab: (tab: string) => void;
 		onlogout: () => void;
+		onopenQrScan?: () => void;
 	}
 
 	let {
@@ -18,7 +19,8 @@
 		runningCount,
 		ontoggleCollapse,
 		onselectTab,
-		onlogout
+		onlogout,
+		onopenQrScan
 	}: Props = $props();
 
 	const navItems = [
@@ -46,8 +48,9 @@
 	];
 </script>
 
+<!-- DESKTOP ASIDE SIDEBAR (Hidden on mobile) -->
 <aside
-	class="transition-all duration-300 ease-in-out border-r border-zinc-800/80 bg-zinc-950/70 backdrop-blur-xl flex flex-col justify-between shrink-0 h-screen sticky top-0 z-30 select-none {collapsed ? 'w-20' : 'w-72'}"
+	class="hidden md:flex transition-all duration-300 ease-in-out border-r border-zinc-800/80 bg-zinc-950/70 backdrop-blur-xl flex-col justify-between shrink-0 h-screen sticky top-0 z-30 select-none {collapsed ? 'w-20' : 'w-72'}"
 >
 	<!-- TOP BRAND & COLLAPSE TOGGLE -->
 	<div class="p-4 border-b border-zinc-800/60">
@@ -199,3 +202,78 @@
 		{/if}
 	</div>
 </aside>
+
+<!-- MOBILE BOTTOM NAVIGATION BAR (Visible on mobile, fixed at bottom) -->
+<nav
+	class="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-zinc-950/95 backdrop-blur-xl border-t border-zinc-800/80 px-2 py-1.5 flex items-center justify-around select-none safe-area-pb"
+>
+	{#each navItems as item}
+		{@const isActive = activeTab === item.id}
+		<button
+			onclick={() => onselectTab(item.id)}
+			class="flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer relative {isActive ? 'text-indigo-400 font-bold' : 'text-zinc-500 hover:text-zinc-300'}"
+		>
+			<div class="relative">
+				<svg
+					xmlns="http://www.w3.org/2000/svg"
+					fill="none"
+					viewBox="0 0 24 24"
+					stroke-width="1.8"
+					stroke="currentColor"
+					class="w-5 h-5 transition-transform {isActive ? 'scale-110 text-indigo-400' : ''}"
+				>
+					<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+				</svg>
+				{#if item.badge !== undefined && item.badge > 0}
+					<span class="absolute -top-1 -right-2 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-full">
+						{item.badge}
+					</span>
+				{/if}
+			</div>
+			<span class="text-[10px] mt-1 truncate max-w-[64px]">
+				{#if item.id === 'overview'}Tổng quan
+				{:else if item.id === 'containers'}Docker
+				{:else if item.id === 'files'}Tệp tin
+				{:else if item.id === 'settings'}Cài đặt
+				{:else}{item.label}
+				{/if}
+			</span>
+			{#if isActive}
+				<div class="absolute -top-1.5 w-6 h-0.5 bg-indigo-500 rounded-full"></div>
+			{/if}
+		</button>
+	{/each}
+
+	<!-- QR Scanner Button on Mobile (cho phép quét mã để login desktop) -->
+	{#if onopenQrScan}
+		<button
+			onclick={onopenQrScan}
+			class="flex flex-col items-center justify-center py-1 px-2 text-indigo-400 hover:text-indigo-300 cursor-pointer"
+			title="Quét QR đăng nhập Desktop"
+		>
+			<div class="p-1.5 rounded-xl bg-indigo-600/20 border border-indigo-500/40">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 3.75 9.375v-4.5ZM3.75 14.625c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5a1.125 1.125 0 0 1-1.125-1.125v-4.5ZM13.5 4.875c0-.621.504-1.125 1.125-1.125h4.5c.621 0 1.125.504 1.125 1.125v4.5c0 .621-.504 1.125-1.125 1.125h-4.5A1.125 1.125 0 0 1 13.5 9.375v-4.5Z" />
+					<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 6.75h.75v.75h-.75v-.75ZM6.75 16.5h.75v.75h-.75v-.75ZM16.5 6.75h.75v.75h-.75v-.75ZM13.5 13.5h.75v.75h-.75v-.75ZM13.5 19.5h.75v.75h-.75v-.75ZM19.5 13.5h.75v.75h-.75v-.75ZM19.5 19.5h.75v.75h-.75v-.75ZM16.5 16.5h.75v.75h-.75v-.75Z" />
+				</svg>
+			</div>
+			<span class="text-[9px] mt-0.5 font-bold">Quét QR</span>
+		</button>
+	{/if}
+
+	<!-- Mobile User Avatar / Logout -->
+	<button
+		onclick={onlogout}
+		class="flex flex-col items-center justify-center py-1 px-1 text-zinc-500 hover:text-rose-400 cursor-pointer"
+		title="Đăng xuất"
+	>
+		{#if user && user.picture}
+			<img src={user.picture} alt={user.name} class="w-6 h-6 rounded-lg object-cover border border-zinc-700" referrerpolicy="no-referrer" />
+		{:else}
+			<div class="w-6 h-6 rounded-lg bg-indigo-600 text-[10px] font-bold text-white flex items-center justify-center">
+				{user?.name?.charAt(0) || 'U'}
+			</div>
+		{/if}
+		<span class="text-[9px] mt-1 text-zinc-500">Thoát</span>
+	</button>
+</nav>
