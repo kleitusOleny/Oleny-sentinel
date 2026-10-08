@@ -24,7 +24,7 @@ services:
     ports:
       - "3000:3000"
     environment:
-      - ORIGIN=${ORIGIN:-}
+      - ORIGIN=https://sentinel.oleny2209.id.vn
       - PROTOCOL_HEADER=x-forwarded-proto
       - HOST_HEADER=x-forwarded-host
       - BACKEND_URL=http://sentinel:8080/api
