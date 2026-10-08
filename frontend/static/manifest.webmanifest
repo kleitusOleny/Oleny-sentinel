@@ -1,0 +1,18 @@
+{
+  "name": "Server Sentinel",
+  "short_name": "Sentinel",
+  "description": "Server Monitoring & Sentinel Management Dashboard",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#09090b",
+  "theme_color": "#09090b",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
