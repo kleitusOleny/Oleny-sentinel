@@ -9,7 +9,7 @@ import org.springframework.scheduling.annotation.EnableScheduling;
 
 @SpringBootApplication
 @EnableScheduling
-@PropertySource("classpath:.env")
+@PropertySource(value = "classpath:.env", ignoreResourceNotFound = true)
 public class ServerSentinelApplication implements CommandLineRunner {
     
     private final DiscordService discordService;
