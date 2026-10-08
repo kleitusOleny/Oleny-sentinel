@@ -235,8 +235,14 @@ public class FileStorageService {
             case "pdf": return "application/pdf";
             case "zip": return "application/zip";
             case "tar": case "gz": return "application/gzip";
-            case "mp4": return "video/mp4";
+            case "mp4": case "m4v": return "video/mp4";
+            case "webm": return "video/webm";
+            case "mkv": return "video/x-matroska";
+            case "mov": return "video/quicktime";
+            case "avi": return "video/x-msvideo";
             case "mp3": return "audio/mpeg";
+            case "wav": return "audio/wav";
+            case "ogg": return "audio/ogg";
             default: return "application/octet-stream";
         }
     }

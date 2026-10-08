@@ -44,11 +44,24 @@
 	// File Preview States
 	let activePreviewItem = $state<{ name: string; path: string; size: number } | null>(null);
 	let activePreviewContent = $state('');
+	let activePreviewUrl = $state('');
 	let isFilePreviewLoading = $state(false);
 
 	async function handleOpenFilePreview(item: { name: string; path: string; size: number }) {
 		activePreviewItem = item;
 		activePreviewContent = '';
+		activePreviewUrl = `${API_BASE}/storage/raw?path=${encodeURIComponent(item.path)}&inline=true`;
+		
+		const ext = item.name.split('.').pop()?.toLowerCase() || '';
+		const isMedia = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'mp4', 'webm', 'ogg', 'mov', 'mkv', 'mp3', 'wav', 'pdf'].includes(ext);
+
+		if (isMedia) {
+			// Đối với media và PDF, render trực tiếp thẻ img, video, audio hoặc iframe
+			isFilePreviewLoading = false;
+			return;
+		}
+
+		// Đối với text/code, tải nội dung dạng text
 		isFilePreviewLoading = true;
 		try {
 			const res = await fetch(`${API_BASE}/storage/preview?path=${encodeURIComponent(item.path)}`);
@@ -554,6 +567,7 @@
 			<FilePreviewModal
 				previewItem={activePreviewItem}
 				previewContent={activePreviewContent}
+				previewUrl={activePreviewUrl}
 				isPreviewLoading={isFilePreviewLoading}
 				onclose={() => (activePreviewItem = null)}
 				ondownload={() => activePreviewItem && handleDownloadFile(activePreviewItem)}

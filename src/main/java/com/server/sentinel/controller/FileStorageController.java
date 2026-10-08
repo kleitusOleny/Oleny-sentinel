@@ -100,20 +100,23 @@ public class FileStorageController {
     }
 
     /**
-     * Tải xuống tệp tin
-     * GET /api/storage/download?path=filename.ext
+     * Tải xuống hoặc xem trực tiếp (inline) tệp tin (ảnh, video, audio, pdf)
+     * GET /api/storage/raw?path=filename.ext hoặc GET /api/storage/download?path=filename.ext&inline=true
      */
-    @GetMapping("/download")
-    public ResponseEntity<?> downloadFile(@RequestParam("path") String path) {
+    @GetMapping({"/download", "/raw"})
+    public ResponseEntity<?> downloadFile(
+            @RequestParam("path") String path,
+            @RequestParam(value = "inline", defaultValue = "false") boolean inline) {
         try {
             Resource resource = fileStorageService.loadFileAsResource(path);
             String filename = resource.getFilename();
             String encodedFilename = URLEncoder.encode(filename, StandardCharsets.UTF_8).replaceAll("\\+", "%20");
             String mimeType = fileStorageService.guessMimeType(filename);
+            String dispositionType = inline ? "inline" : "attachment";
 
             return ResponseEntity.ok()
                     .contentType(MediaType.parseMediaType(mimeType))
-                    .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename*=UTF-8''" + encodedFilename)
+                    .header(HttpHeaders.CONTENT_DISPOSITION, dispositionType + "; filename*=UTF-8''" + encodedFilename)
                     .body(resource);
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));

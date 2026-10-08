@@ -258,9 +258,11 @@
 		}
 	}
 
-	function isTextPreviewable(ext: string): boolean {
+	function isPreviewable(ext: string): boolean {
+		const lower = ext.toLowerCase();
 		const textExts = ['txt', 'log', 'json', 'yml', 'yaml', 'xml', 'md', 'env', 'properties', 'js', 'ts', 'html', 'css', 'sh', 'sql', 'csv'];
-		return textExts.includes(ext.toLowerCase());
+		const mediaExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'mp4', 'webm', 'ogg', 'mov', 'mkv', 'mp3', 'wav', 'pdf'];
+		return textExts.includes(lower) || mediaExts.includes(lower);
 	}
 
 	onMount(() => {
@@ -512,7 +514,7 @@
 								<td class="py-3 px-4 text-right">
 									<div class="flex items-center justify-end gap-1.5 opacity-80 group-hover:opacity-100 transition-opacity">
 										{#if !item.directory}
-											{#if isTextPreviewable(item.extension)}
+											{#if isPreviewable(item.extension)}
 												<button
 													onclick={() => onpreview(item)}
 													class="p-1.5 text-zinc-400 hover:text-indigo-300 hover:bg-indigo-600/10 rounded-lg transition-colors cursor-pointer"
@@ -589,7 +591,7 @@
 					<!-- Quick Action Hover Menu -->
 					<div class="mt-3 pt-2 border-t border-zinc-800/60 flex items-center justify-center gap-2">
 						{#if !item.directory}
-							{#if isTextPreviewable(item.extension)}
+							{#if isPreviewable(item.extension)}
 								<button
 									onclick={() => onpreview(item)}
 									class="p-1 text-zinc-400 hover:text-indigo-300 rounded cursor-pointer"

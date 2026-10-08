@@ -2,12 +2,13 @@
 	interface Props {
 		previewItem: { name: string; path: string; size: number } | null;
 		previewContent: string;
+		previewUrl: string;
 		isPreviewLoading: boolean;
 		onclose: () => void;
 		ondownload: () => void;
 	}
 
-	let { previewItem, previewContent, isPreviewLoading, onclose, ondownload }: Props = $props();
+	let { previewItem, previewContent, previewUrl, isPreviewLoading, onclose, ondownload }: Props = $props();
 
 	function formatBytes(bytes: number, decimals = 1): string {
 		if (bytes === 0) return '0 B';
@@ -17,22 +18,43 @@
 		const i = Math.floor(Math.log(bytes) / Math.log(k));
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 	}
+
+	function getExtension(name: string): string {
+		const idx = name.lastIndexOf('.');
+		return idx >= 0 ? name.substring(idx + 1).toLowerCase() : '';
+	}
+
+	let fileExt = $derived(previewItem ? getExtension(previewItem.name) : '');
+	let isImage = $derived(['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp'].includes(fileExt));
+	let isVideo = $derived(['mp4', 'webm', 'ogg', 'mov', 'mkv'].includes(fileExt));
+	let isAudio = $derived(['mp3', 'wav', 'ogg', 'm4a', 'flac'].includes(fileExt));
+	let isPdf = $derived(fileExt === 'pdf');
 </script>
 
 {#if previewItem}
 	<div 
-		class="fixed inset-0 z-50 flex items-center justify-center p-4 md:p-8 bg-black/80 backdrop-blur-md animate-fadeIn"
+		class="fixed inset-0 z-50 flex items-center justify-center p-2 sm:p-4 md:p-8 bg-black/85 backdrop-blur-md animate-fadeIn"
 		role="dialog"
 		aria-modal="true"
 	>
-		<div class="bg-zinc-900 border border-zinc-700/80 rounded-2xl w-full max-w-4xl h-[85vh] flex flex-col shadow-2xl overflow-hidden relative">
+		<div class="bg-zinc-900 border border-zinc-700/80 rounded-2xl w-full max-w-5xl h-[88vh] flex flex-col shadow-2xl overflow-hidden relative">
 			<!-- Header -->
 			<div class="p-4 border-b border-zinc-800 flex items-center justify-between bg-zinc-950/80 shrink-0">
 				<div class="flex items-center gap-3 truncate mr-4">
-					<div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0">
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-						</svg>
+					<div class="p-2 rounded-xl {isImage ? 'bg-emerald-500/10 text-emerald-400' : isVideo ? 'bg-rose-500/10 text-rose-400' : isAudio ? 'bg-amber-500/10 text-amber-400' : 'bg-indigo-500/10 text-indigo-400'} shrink-0">
+						{#if isImage}
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+								<path stroke-linecap="round" stroke-linejoin="round" d="m2.25 15.75 5.159-5.159a2.25 2.25 0 0 1 3.182 0l5.159 5.159m-1.5-1.5 1.409-1.409a2.25 2.25 0 0 1 3.182 0l2.909 2.909m-18 3.75h16.5a1.5 1.5 0 0 0 1.5-1.5V6a1.5 1.5 0 0 0-1.5-1.5H3.75A1.5 1.5 0 0 0 2.25 6v12a1.5 1.5 0 0 0 1.5 1.5Zm10.5-11.25h.008v.008h-.008V8.25Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+							</svg>
+						{:else if isVideo}
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+								<path stroke-linecap="round" stroke-linejoin="round" d="m15.75 10.5 4.72-4.72a.75.75 0 0 1 1.28.53v11.38a.75.75 0 0 1-1.28.53l-4.72-4.72M4.5 18.75h9a2.25 2.25 0 0 0 2.25-2.25v-9a2.25 2.25 0 0 0-2.25-2.25h-9A2.25 2.25 0 0 0 2.25 7.5v9a2.25 2.25 0 0 0 2.25 2.25Z" />
+							</svg>
+						{:else}
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+							</svg>
+						{/if}
 					</div>
 					<div class="truncate">
 						<h3 class="text-sm md:text-base font-bold text-white truncate">{previewItem.name}</h3>
@@ -63,17 +85,59 @@
 			</div>
 
 			<!-- Body Content -->
-			<div class="flex-1 bg-zinc-950 p-4 md:p-6 overflow-auto font-mono text-xs text-zinc-200 whitespace-pre leading-relaxed select-text">
+			<div class="flex-1 bg-zinc-950/90 flex items-center justify-center overflow-auto p-4 md:p-6 relative select-text">
 				{#if isPreviewLoading}
-					<div class="h-full flex flex-col items-center justify-center gap-3 text-zinc-500">
+					<div class="flex flex-col items-center justify-center gap-3 text-zinc-500">
 						<svg class="animate-spin h-7 w-7 text-indigo-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
 							<circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
 							<path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
 						</svg>
-						<span>Đang tải nội dung tệp...</span>
+						<span class="text-xs">Đang nạp tệp đa phương tiện...</span>
 					</div>
+				{:else if isImage}
+					<!-- Image Viewer -->
+					<div class="w-full h-full flex items-center justify-center p-2">
+						<img 
+							src={previewUrl} 
+							alt={previewItem.name} 
+							class="max-w-full max-h-[75vh] object-contain rounded-xl shadow-2xl border border-zinc-800 bg-zinc-900/50" 
+						/>
+					</div>
+				{:else if isVideo}
+					<!-- Video Player -->
+					<div class="w-full h-full flex items-center justify-center p-2">
+						<!-- svelte-ignore a11y_media_has_caption -->
+						<video 
+							src={previewUrl} 
+							controls 
+							autoplay 
+							class="max-w-full max-h-[75vh] rounded-2xl shadow-2xl border border-zinc-800 bg-black outline-none"
+						></video>
+					</div>
+				{:else if isAudio}
+					<!-- Audio Player -->
+					<div class="w-full max-w-md p-6 bg-zinc-900 border border-zinc-800 rounded-2xl text-center space-y-4 shadow-xl">
+						<div class="w-16 h-16 mx-auto rounded-full bg-amber-500/10 flex items-center justify-center text-amber-400">
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M9 9l10.5-3m0 6.553v3.75a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66v-3.8m0-4.913a.75.75 0 0 0-.53-.72L8.97 3.32a.75.75 0 0 0-.97.72v9.513a2.25 2.25 0 0 1-1.632 2.163l-1.32.377a1.803 1.803 0 1 1-.99-3.467l2.31-.66V3.75" />
+							</svg>
+						</div>
+						<div class="text-sm font-semibold text-zinc-200 truncate">{previewItem.name}</div>
+						<!-- svelte-ignore a11y_media_has_caption -->
+						<audio src={previewUrl} controls class="w-full outline-none"></audio>
+					</div>
+				{:else if isPdf}
+					<!-- PDF Viewer -->
+					<iframe 
+						src={previewUrl} 
+						title={previewItem.name} 
+						class="w-full h-full rounded-xl border border-zinc-800 bg-zinc-900"
+					></iframe>
 				{:else}
-					{previewContent}
+					<!-- Text / Code Viewer -->
+					<div class="w-full h-full overflow-auto font-mono text-xs text-zinc-200 whitespace-pre leading-relaxed select-text p-2">
+						{previewContent}
+					</div>
 				{/if}
 			</div>
 		</div>
