@@ -216,11 +216,11 @@ class TransferQueueStore {
 						const totalSentBytes = Math.min(file.size, completedBytes + currentChunkLoaded);
 
 						task.loaded = totalSentBytes;
-						task.progress = Math.min(99, Math.round((totalSentBytes / file.size) * 100));
+						task.progress = Math.min(99, Math.max(1, Math.round((totalSentBytes / file.size) * 100)));
 
 						// Tính tốc độ
 						const timeDiff = (now - lastTime) / 1000;
-						if (timeDiff >= 0.4 || totalSentBytes === file.size) {
+						if (timeDiff >= 0.3 || totalSentBytes === file.size) {
 							const bytesDiff = totalSentBytes - lastLoadedTotal;
 							const speed = timeDiff > 0 ? bytesDiff / timeDiff : 0;
 							task.speedText = `${formatBytes(speed)}/s`;
@@ -232,6 +232,11 @@ class TransferQueueStore {
 					xhr.onload = () => {
 						if (xhr.status >= 200 && xhr.status < 300) {
 							uploadedChunkSet.add(chunkIdx);
+							// CẬP NHẬT CHÍNH XÁC KHI CHUNK NÀY ĐÃ GỬI XONG
+							const chunkEndBytes = Math.min(file.size, (chunkIdx + 1) * CHUNK_SIZE);
+							task.loaded = chunkEndBytes;
+							task.progress = Math.min(99, Math.round((chunkEndBytes / file.size) * 100));
+							task.currentChunk = chunkIdx + 1;
 							resolve();
 						} else {
 							reject(new Error(`Chunk ${chunkIdx} thất bại (${xhr.status})`));

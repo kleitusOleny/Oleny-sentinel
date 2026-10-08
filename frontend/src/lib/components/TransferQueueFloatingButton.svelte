@@ -109,6 +109,7 @@
 										</p>
 										<div class="flex items-center gap-2 text-[10px] text-zinc-400 font-mono">
 											<span>{formatBytes(task.loaded)} / {formatBytes(task.size)}</span>
+											<span class="text-indigo-400 font-semibold font-mono">({task.progress}%)</span>
 											{#if task.totalChunks && task.totalChunks > 1}
 												<span>• Chunk { (task.currentChunk || 0) + 1 }/{ task.totalChunks }</span>
 											{/if}
@@ -119,9 +120,14 @@
 								<!-- Status / Cancel Button -->
 								<div class="flex items-center gap-2 shrink-0">
 									{#if task.status === 'transferring'}
-										<span class="text-[11px] font-mono font-bold text-indigo-400">
-											{task.speedText}
-										</span>
+										<div class="flex flex-col items-end">
+											<span class="text-[11px] font-mono font-bold text-indigo-400">
+												{task.speedText}
+											</span>
+											<span class="text-[10px] font-mono font-semibold text-cyan-400">
+												{task.progress}%
+											</span>
+										</div>
 										<button
 											onclick={() => transferQueue.cancelTask(task.id, apiBase)}
 											class="p-1 text-zinc-400 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg cursor-pointer transition-colors"
@@ -149,7 +155,7 @@
 											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
 												<path stroke-linecap="round" stroke-linejoin="round" d="m4.5 12.75 6 6 9-13.5" />
 											</svg>
-											Xong
+											100% Xong
 										</span>
 									{:else if task.status === 'cancelled'}
 										<span class="text-[10px] text-zinc-500 italic">Đã hủy</span>
@@ -165,7 +171,7 @@
 							{#if task.status === 'transferring' || task.status === 'queued'}
 								<div class="w-full bg-zinc-800 rounded-full h-1.5 overflow-hidden">
 									<div
-										class="h-full bg-gradient-to-r from-indigo-500 to-cyan-400 transition-all duration-200"
+										class="h-full bg-gradient-to-r from-indigo-500 via-cyan-400 to-indigo-400 transition-all duration-150"
 										style="width: {task.progress}%"
 									></div>
 								</div>
