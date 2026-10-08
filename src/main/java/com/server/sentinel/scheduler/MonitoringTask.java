@@ -91,9 +91,6 @@ public class MonitoringTask {
             gpuMemoryUsagePercent
         );
         
-        System.out.println("Kiem tra he thong: CPU = " + String.format("%.2f", cpuLoad)
-                + "%, RAM trong = " + freeMemory + " MB, Disk = " + String.format("%.1f", diskUsagePercent) + "%");
-        
         // Canh bao CPU (cooldown 10 phut)
         double cpuLimit = settingsService.getCpuThreshold();
         if (cpuLoad > cpuLimit) {
