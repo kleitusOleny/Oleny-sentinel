@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { transferQueue } from '$lib/stores/transferQueue.svelte';
+	import MobileFileUploadModal from './MobileFileUploadModal.svelte';
 
 	interface FileItem {
 		name: string;
@@ -45,6 +46,9 @@
 	let showNewFolderModal = $state(false);
 	let newFolderName = $state('');
 	let isCreatingFolder = $state(false);
+
+	// Mobile Upload Modal Dialog
+	let showMobileUploadModal = $state(false);
 
 	// Delete confirmation
 	let deleteTarget = $state<FileItem | null>(null);
@@ -335,7 +339,7 @@
 				Thư mục mới
 			</button>
 
-			<!-- Upload Button (Always Enabled, adds to queue) -->
+			<!-- DESKTOP UPLOAD BUTTON (hidden on mobile, uses chunk queue) -->
 			<input
 				type="file"
 				multiple
@@ -345,12 +349,22 @@
 			/>
 			<button
 				onclick={() => fileInputRef.click()}
-				class="px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50 hover:scale-105 active:scale-95"
-				title="Thêm tệp tin vào hàng đợi tải lên"
+				class="hidden md:flex px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50 hover:scale-105 active:scale-95"
+				title="Thêm tệp tin vào hàng đợi tải lên (Desktop)"
 			>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
 				</svg>
+				Tải lên
+			</button>
+
+			<!-- MOBILE UPLOAD BUTTON (visible only on mobile, dedicated direct upload modal) -->
+			<button
+				onclick={() => (showMobileUploadModal = true)}
+				class="md:hidden px-3.5 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer shadow-lg shadow-indigo-950/50 active:scale-95"
+				title="Tải tệp tin từ điện thoại"
+			>
+				<span class="text-xs">📱</span>
 				Tải lên
 			</button>
 		</div>
@@ -656,3 +670,12 @@
 		</div>
 	</div>
 {/if}
+
+<!-- MODAL: GỬI FILE TỪ THIẾT BỊ DI ĐỘNG (MOBILE TÁCH BIỆT HOÀN TOÀN) -->
+<MobileFileUploadModal
+	apiBase={apiBase}
+	currentPath={currentPath}
+	isOpen={showMobileUploadModal}
+	onclose={() => (showMobileUploadModal = false)}
+	onuploadSuccess={() => loadDirectory(currentPath)}
+/>
