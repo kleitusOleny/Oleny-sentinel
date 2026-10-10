@@ -3,6 +3,8 @@
 	import SystemMetricsModule from './module/SystemMetricsModule.svelte';
 	import ContainerGlanceModule from './module/ContainerGlanceModule.svelte';
 	import ScratchpadModule from './module/ScratchpadModule.svelte';
+	import ContainersTab from './ContainersTab.svelte';
+	import FileManagerTab from './FileManagerTab.svelte';
 
 	interface ContainerItem {
 		Id?: string;
@@ -47,18 +49,34 @@
 	interface Props {
 		containers: ContainerItem[];
 		systemStats: any | null;
+		whitelist?: string[];
+		actionLoading?: Record<string, boolean>;
+		copySuccess?: Record<string, boolean>;
 		apiBase?: string;
 		onnavigateTab: (tab: string) => void;
+		onaction?: (id: string, action: 'start' | 'stop' | 'restart') => void;
+		ontoggleAutoHeal?: (name: string) => void;
+		onopenLogs?: (id: string, name: string) => void;
+		oncopy?: (text: string, id: string) => void;
 		onopenFilePreview?: (item: { name: string; path: string; size: number }) => void;
+		ondownloadFile?: (item: any) => void;
 		onnavigateFiles?: (query?: string, path?: string) => void;
 	}
 
 	let { 
 		containers = [], 
 		systemStats = null, 
+		whitelist = [],
+		actionLoading = {},
+		copySuccess = {},
 		apiBase = '/api',
 		onnavigateTab,
+		onaction,
+		ontoggleAutoHeal,
+		onopenLogs,
+		oncopy,
 		onopenFilePreview,
+		ondownloadFile,
 		onnavigateFiles
 	}: Props = $props();
 
@@ -684,27 +702,33 @@
 
 		<!-- Live Inline Matched Containers -->
 		{#if searchEngine === 'containers' && searchQuery.trim()}
-			<div class="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-2">
-				<div class="text-xs font-bold text-zinc-400">Containers ({matchedContainers.length}):</div>
-				{#if matchedContainers.length === 0}
-					<div class="text-xs text-zinc-500 italic">No matching containers found.</div>
-				{:else}
-					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-						{#each matchedContainers as c}
-							<button
-								onclick={() => onnavigateTab('containers')}
-								class="text-left p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-indigo-500/60 transition-all cursor-pointer group"
-							>
-								<div class="text-xs font-bold text-zinc-200 group-hover:text-indigo-400 truncate">
-									{(c.Names?.[0] || c.name || '').replace(/^\//, '')}
-								</div>
-								<div class="text-[10px] font-mono text-zinc-500 truncate mt-1">
-									{c.Image || c.image || ''}
-								</div>
-							</button>
-						{/each}
+			<div class="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-3">
+				<div class="flex items-center justify-between">
+					<div class="text-xs font-bold text-zinc-300 flex items-center gap-2">
+						<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#0db7ed">
+							<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+						</svg>
+						<span>Containers ({matchedContainers.length}):</span>
 					</div>
-				{/if}
+					<button
+						onclick={() => onnavigateTab('containers')}
+						class="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold hover:underline cursor-pointer"
+					>
+						View in Containers →
+					</button>
+				</div>
+
+				<ContainersTab
+					containers={matchedContainers}
+					whitelist={whitelist}
+					actionLoading={actionLoading}
+					copySuccess={copySuccess}
+					showFilterBar={false}
+					onaction={onaction || (() => {})}
+					ontoggleAutoHeal={ontoggleAutoHeal || (() => {})}
+					onopenLogs={onopenLogs || (() => {})}
+					oncopy={oncopy || (() => {})}
+				/>
 			</div>
 		{/if}
 
@@ -736,37 +760,17 @@
 				{:else if matchedFiles.length === 0}
 					<div class="text-xs text-zinc-500 italic py-2">No files or folders matching "{searchQuery}".</div>
 				{:else}
-					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-						{#each matchedFiles as f}
-							<button
-								onclick={() => {
-									if (f.directory) {
-										if (onnavigateFiles) onnavigateFiles('', f.path);
-										else onnavigateTab('files');
-									} else {
-										if (onopenFilePreview) onopenFilePreview({ name: f.name, path: f.path, size: f.size });
-										else if (onnavigateFiles) onnavigateFiles(f.name, '');
-										else onnavigateTab('files');
-									}
-								}}
-								class="text-left p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-indigo-500/60 hover:bg-zinc-900/60 transition-all cursor-pointer group flex items-start gap-2.5"
-							>
-								{#if f.directory}
-									<span class="text-amber-400 text-lg select-none">📁</span>
-								{:else}
-									<span class="text-indigo-400 text-lg select-none">📄</span>
-								{/if}
-								<div class="truncate flex-1">
-									<div class="text-xs font-bold text-zinc-200 group-hover:text-indigo-300 truncate">
-										{f.name}
-									</div>
-									<div class="text-[10px] font-mono text-zinc-500 truncate mt-0.5">
-										{f.path}
-									</div>
-								</div>
-							</button>
-						{/each}
-					</div>
+					<FileManagerTab
+						apiBase={apiBase}
+						showToolbar={false}
+						overrideItems={matchedFiles}
+						onpreview={(item) => {
+							if (onopenFilePreview) onopenFilePreview(item);
+						}}
+						ondownload={(item) => {
+							if (ondownloadFile) ondownloadFile(item);
+						}}
+					/>
 				{/if}
 			</div>
 		{/if}

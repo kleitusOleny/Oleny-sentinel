@@ -16,11 +16,21 @@
 		apiBase: string;
 		initialSearchQuery?: string;
 		initialPath?: string;
+		showToolbar?: boolean;
+		overrideItems?: FileItem[] | null;
 		onpreview: (item: FileItem) => void;
 		ondownload: (item: FileItem) => void;
 	}
 
-	let { apiBase, initialSearchQuery = '', initialPath = '', onpreview, ondownload }: Props = $props();
+	let { 
+		apiBase, 
+		initialSearchQuery = '', 
+		initialPath = '', 
+		showToolbar = true,
+		overrideItems = null,
+		onpreview, 
+		ondownload 
+	}: Props = $props();
 
 	// State
 	let currentPath = $state(initialPath);
@@ -58,7 +68,9 @@
 
 	// Derived: Filtered items
 	let filteredItems = $derived(
-		items.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
+		overrideItems !== null
+			? overrideItems
+			: items.filter((item) => item.name.toLowerCase().includes(searchQuery.toLowerCase()))
 	);
 
 	function formatBytes(bytes: number, decimals = 1): string {
@@ -220,6 +232,7 @@
 </script>
 <div class="space-y-5 animate-fadeIn">
 	<!-- TOP TOOLBAR & ACTION HEADER -->
+	{#if showToolbar}
 	<div class="bg-zinc-900/40 backdrop-blur-md border border-zinc-800/80 rounded-2xl p-4 flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 shadow-xl">
 		<!-- Breadcrumbs Navigation -->
 		<div class="flex items-center gap-1.5 overflow-x-auto text-sm py-1">
@@ -342,6 +355,7 @@
 			</button>
 		</div>
 	</div>
+	{/if}
 
 	<!-- ERROR BANNER -->
 	{#if errorMessage}

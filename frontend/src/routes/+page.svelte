@@ -6,6 +6,7 @@
 	import MetricCards from '$lib/components/MetricCards.svelte';
 	import PerformanceChart from '$lib/components/PerformanceChart.svelte';
 	import AlertSettingsPanel from '$lib/components/AlertSettingsPanel.svelte';
+	import ContainersTab from '$lib/components/ContainersTab.svelte';
 	import ContainerCard from '$lib/components/ContainerCard.svelte';
 	import LogsModal from '$lib/components/LogsModal.svelte';
 	import FileManagerTab from '$lib/components/FileManagerTab.svelte';
@@ -370,9 +371,17 @@
 					<HomeTab 
 						containers={containers} 
 						systemStats={systemStats} 
+						whitelist={whitelist}
+						actionLoading={actionLoading}
+						copySuccess={copySuccess}
 						apiBase={API_BASE}
 						onnavigateTab={(tab) => (activeTab = tab)}
+						onaction={handleContainerAction}
+						ontoggleAutoHeal={handleToggleAutoHeal}
+						onopenLogs={openLogsModal}
+						oncopy={copyToClipboard}
 						onopenFilePreview={handleOpenFilePreview}
+						ondownloadFile={handleDownloadFile}
 						onnavigateFiles={(query, path) => {
 							filesInitialSearchQuery = query || '';
 							filesInitialPath = path || '';
@@ -447,87 +456,19 @@
 				<!-- TAB CONTENT: CONTAINERS -->
 				{#if activeTab === 'containers'}
 					<section class="space-y-6">
-						<!-- Search & Status Filter Bar -->
-						<div class="flex flex-col md:flex-row justify-between items-stretch md:items-center gap-4 bg-zinc-900/30 p-4 border border-zinc-800/80 rounded-2xl backdrop-blur-md">
-							<!-- Filter Badges -->
-							<div class="flex items-center gap-2 overflow-x-auto pb-1 md:pb-0">
-								<button
-									onclick={() => (statusFilter = 'all')}
-									class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border {statusFilter === 'all' ? 'bg-indigo-600 text-white border-indigo-500 shadow-md shadow-indigo-900/40' : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'}"
-								>
-									Tất cả ({containers.length})
-								</button>
-								<button
-									onclick={() => (statusFilter = 'running')}
-									class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border {statusFilter === 'running' ? 'bg-emerald-600/30 text-emerald-300 border-emerald-500/50 shadow-md shadow-emerald-950/40' : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'}"
-								>
-									Đang chạy ({runningContainersCount})
-								</button>
-								<button
-									onclick={() => (statusFilter = 'exited')}
-									class="px-3.5 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer border {statusFilter === 'exited' ? 'bg-rose-600/30 text-rose-300 border-rose-500/50 shadow-md shadow-rose-950/40' : 'bg-zinc-900 text-zinc-400 border-zinc-800 hover:text-zinc-200'}"
-								>
-									Đã dừng ({containers.length - runningContainersCount})
-								</button>
-							</div>
-
-							<!-- Search Field -->
-							<div class="relative w-full md:w-80">
-								<input
-									type="text"
-									placeholder="Tìm kiếm theo tên container, image..."
-									bind:value={searchQuery}
-									class="w-full bg-zinc-900/90 border border-zinc-800 text-zinc-100 placeholder-zinc-500 rounded-xl pl-10 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
-								/>
-								<div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-zinc-500">
-									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-										<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
-									</svg>
-								</div>
-							</div>
-						</div>
-
-						<!-- Loading Skeleton -->
-						{#if isLoading && containers.length === 0}
-							<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-								{#each Array(6) as _}
-									<div class="bg-zinc-900/20 border border-zinc-800/80 rounded-2xl p-5 space-y-4 animate-pulse">
-										<div class="h-6 bg-zinc-800 rounded w-2/3"></div>
-										<div class="h-4 bg-zinc-800 rounded w-1/2"></div>
-										<div class="h-4 bg-zinc-800 rounded w-1/3"></div>
-										<div class="flex justify-between items-center pt-2">
-											<div class="h-8 bg-zinc-800 rounded w-1/3"></div>
-											<div class="h-8 bg-zinc-800 rounded w-1/3"></div>
-										</div>
-									</div>
-								{/each}
-							</div>
-						{:else if filteredContainers.length === 0}
-							<!-- Empty state -->
-							<div class="text-center py-20 bg-zinc-900/10 border border-dashed border-zinc-800 rounded-2xl space-y-3">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.5" stroke="currentColor" class="w-12 h-12 text-zinc-600 mx-auto">
-									<path stroke-linecap="round" stroke-linejoin="round" d="m9.75 9.75 4.5 4.5m0-4.5-4.5 4.5M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
-								</svg>
-								<h4 class="text-zinc-400 font-bold">Không tìm thấy Container nào</h4>
-								<p class="text-xs text-zinc-500">Hãy thử đổi từ khoá tìm kiếm hoặc kiểm tra bộ lọc trạng thái.</p>
-							</div>
-						{:else}
-							<!-- GRID LIST CONTAINERS -->
-							<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-								{#each filteredContainers as c (c.Id || c.id)}
-									<ContainerCard 
-										container={c} 
-										whitelist={whitelist} 
-										actionLoading={actionLoading} 
-										copySuccess={copySuccess} 
-										onaction={handleContainerAction} 
-										ontoggleAutoHeal={handleToggleAutoHeal} 
-										onopenLogs={openLogsModal} 
-										oncopy={copyToClipboard}
-									/>
-								{/each}
-							</div>
-						{/if}
+						<ContainersTab 
+							containers={containers}
+							whitelist={whitelist}
+							actionLoading={actionLoading}
+							copySuccess={copySuccess}
+							isLoading={isLoading}
+							bind:searchQuery={searchQuery}
+							bind:statusFilter={statusFilter}
+							onaction={handleContainerAction}
+							ontoggleAutoHeal={handleToggleAutoHeal}
+							onopenLogs={openLogsModal}
+							oncopy={copyToClipboard}
+						/>
 					</section>
 				{/if}
 
