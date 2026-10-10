@@ -14,6 +14,7 @@
 	import QrScanModal from '$lib/components/QrScanModal.svelte';
 	import TransferQueueFloatingButton from '$lib/components/TransferQueueFloatingButton.svelte';
 	import HomeTab from '$lib/components/HomeTab.svelte';
+	import TerminalTab from '$lib/components/TerminalTab.svelte';
 	import { transferQueue } from '$lib/stores/transferQueue.svelte';
 
 	const API_BASE = '/api';
@@ -309,6 +310,7 @@
 	let tabTitle = $derived.by(() => {
 		if (activeTab === 'home') return 'Trang chủ & Trung tâm Tìm kiếm';
 		if (activeTab === 'containers') return 'Quản lý Docker Containers';
+		if (activeTab === 'terminal') return 'Web Terminal & Shell Console';
 		if (activeTab === 'files') return 'Quản lý Tệp tin & Thư mục Hệ thống';
 		if (activeTab === 'settings') return 'Cấu hình Cảnh báo & Discord Bot';
 		return 'Bảng điều khiển & Giám sát Hệ thống';
@@ -468,6 +470,16 @@
 							ontoggleAutoHeal={handleToggleAutoHeal}
 							onopenLogs={openLogsModal}
 							oncopy={copyToClipboard}
+						/>
+					</section>
+				{/if}
+
+				<!-- TAB CONTENT: TERMINAL -->
+				{#if activeTab === 'terminal'}
+					<section class="space-y-6">
+						<TerminalTab 
+							apiBase={API_BASE}
+							containers={containers}
 						/>
 					</section>
 				{/if}
