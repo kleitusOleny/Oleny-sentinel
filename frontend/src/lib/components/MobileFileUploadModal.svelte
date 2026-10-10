@@ -25,6 +25,8 @@
 	let errorMessage = $state('');
 	let fileInputMobile: HTMLInputElement;
 
+	let isProcessingFiles = $state(false);
+
 	function formatBytes(bytes: number, decimals = 2) {
 		if (bytes === 0) return '0 B';
 		const k = 1024;
@@ -34,14 +36,49 @@
 		return parseFloat((bytes / Math.pow(k, i)).toFixed(dm)) + ' ' + sizes[i];
 	}
 
-	function handleFileSelect(e: Event) {
+	async function handleFileSelect(e: Event) {
 		const target = e.target as HTMLInputElement;
-		if (target.files && target.files.length > 0) {
-			const incoming = Array.from(target.files);
-			// Gộp hoặc thêm vào danh sách hiện có
-			selectedFiles = [...selectedFiles, ...incoming];
-			errorMessage = '';
-			statusMessage = `Đã chọn ${selectedFiles.length} tệp tin.`;
+		if (!target.files || target.files.length === 0) return;
+
+		isProcessingFiles = true;
+		errorMessage = '';
+		statusMessage = 'Đang kiểm tra và nạp tệp từ thiết bị...';
+
+		try {
+			const rawFiles = Array.from(target.files);
+			const validFiles: File[] = [];
+			const emptyOrICloudFiles: string[] = [];
+
+			for (const file of rawFiles) {
+				// Thử đọc 1 đoạn nhỏ để kiểm tra xem file có sẵn trên máy hay đang bị kẹt trên iCloud
+				try {
+					const slice = file.slice(0, Math.min(1024, file.size || 1024));
+					const buffer = await slice.arrayBuffer();
+					// Nếu file báo size > 0 nhưng buffer đọc ra rỗng hoặc file size = 0
+					if (file.size === 0 && buffer.byteLength === 0) {
+						emptyOrICloudFiles.push(file.name);
+					} else {
+						validFiles.push(file);
+					}
+				} catch (readErr) {
+					console.warn('Không thể đọc file từ thiết bị (có thể do iCloud):', file.name, readErr);
+					emptyOrICloudFiles.push(file.name);
+				}
+			}
+
+			if (validFiles.length > 0) {
+				selectedFiles = [...selectedFiles, ...validFiles];
+				statusMessage = `Đã chọn ${selectedFiles.length} tệp tin sẵn sàng tải lên.`;
+			}
+
+			if (emptyOrICloudFiles.length > 0) {
+				errorMessage = `⚠️ ${emptyOrICloudFiles.length} tệp (${emptyOrICloudFiles.join(', ')}) chưa được tải về máy (đang lưu trên iCloud). Hãy mở ứng dụng Ảnh/Files trên iPhone để tải về trước, hoặc chụp/chọn lại ảnh.`;
+			}
+		} catch (err: any) {
+			console.error('Lỗi khi nạp file:', err);
+			errorMessage = 'Không thể nạp tệp tin từ thiết bị: ' + (err.message || 'Lỗi không xác định');
+		} finally {
+			isProcessingFiles = false;
 			// Reset value để người dùng có thể chọn lại cùng 1 file nếu muốn
 			target.value = '';
 		}
@@ -65,11 +102,22 @@
 				currentUploadingName = file.name;
 				statusMessage = `Đang tải lên (${i + 1}/${selectedFiles.length}): ${file.name}`;
 
+				// Nạp dữ liệu thành Blob độc lập để tránh Safari giải phóng con trỏ stream ngầm
+				let uploadBlob: Blob;
+				try {
+					const arrayBuffer = await file.arrayBuffer();
+					if (arrayBuffer.byteLength === 0) {
+						throw new Error(`Tệp "${file.name}" có dung lượng 0 bytes hoặc chưa tải xong từ iCloud.`);
+					}
+					uploadBlob = new Blob([arrayBuffer], { type: file.type || 'application/octet-stream' });
+				} catch (blobErr: any) {
+					throw new Error(blobErr.message || `Lỗi khi đọc dữ liệu tệp "${file.name}".`);
+				}
+
 				const formData = new FormData();
 				formData.append('path', currentPath);
-				// Gửi cả key 'file' và 'files' để tương thích 100% mọi parser
-				formData.append('file', file, file.name);
-				formData.append('files', file, file.name);
+				// Gửi Blob kèm tên file chính xác
+				formData.append('file', uploadBlob, file.name);
 
 				await new Promise<void>((resolve, reject) => {
 					const xhr = new XMLHttpRequest();
@@ -183,11 +231,16 @@
 				for="mobile-native-file-picker"
 				class="w-full py-8 px-4 rounded-2xl border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-950/20 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 select-none"
 			>
-				<span class="text-3xl">📤</span>
-				<div class="text-center">
-					<div class="text-xs font-bold text-indigo-300">Nhấn vào đây để chọn tệp từ điện thoại</div>
-					<div class="text-[10px] text-zinc-400 mt-0.5">Hỗ trợ Hình ảnh, Video, Tài liệu, Tệp nén...</div>
-				</div>
+				{#if isProcessingFiles}
+					<span class="w-8 h-8 rounded-full border-3 border-indigo-400 border-t-transparent animate-spin"></span>
+					<div class="text-xs font-bold text-indigo-300">Đang nạp dữ liệu từ thiết bị...</div>
+				{:else}
+					<span class="text-3xl">📤</span>
+					<div class="text-center">
+						<div class="text-xs font-bold text-indigo-300">Nhấn vào đây để chọn tệp từ điện thoại</div>
+						<div class="text-[10px] text-zinc-400 mt-0.5">Hỗ trợ Hình ảnh, Video, Tài liệu, Tệp nén...</div>
+					</div>
+				{/if}
 			</label>
 		{:else}
 			<!-- Selected Files List -->
