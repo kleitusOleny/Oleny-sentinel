@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	import { onMount } from 'svelte';
 
 	interface Props {
@@ -37,9 +37,13 @@
 	function handleFileSelect(e: Event) {
 		const target = e.target as HTMLInputElement;
 		if (target.files && target.files.length > 0) {
-			selectedFiles = Array.from(target.files);
+			const incoming = Array.from(target.files);
+			// Gộp hoặc thêm vào danh sách hiện có
+			selectedFiles = [...selectedFiles, ...incoming];
 			errorMessage = '';
 			statusMessage = `Đã chọn ${selectedFiles.length} tệp tin.`;
+			// Reset value để người dùng có thể chọn lại cùng 1 file nếu muốn
+			target.value = '';
 		}
 	}
 
@@ -63,15 +67,17 @@
 
 				const formData = new FormData();
 				formData.append('path', currentPath);
+				// Gửi cả key 'file' và 'files' để tương thích 100% mọi parser
 				formData.append('file', file, file.name);
+				formData.append('files', file, file.name);
 
 				await new Promise<void>((resolve, reject) => {
 					const xhr = new XMLHttpRequest();
 					xhr.open('POST', `${apiBase}/storage/upload`);
+					xhr.timeout = 180000; // 3 phút timeout cho file lớn
 
 					xhr.upload.onprogress = (e) => {
 						if (e.lengthComputable) {
-							const filePercent = Math.round((e.loaded / e.total) * 100);
 							// Tính tổng % trên toàn bộ danh sách
 							uploadProgress = Math.round(((i + e.loaded / e.total) / selectedFiles.length) * 100);
 						}
@@ -85,13 +91,13 @@
 								const res = JSON.parse(xhr.responseText);
 								reject(new Error(res.message || `Lỗi máy chủ (${xhr.status})`));
 							} catch {
-								reject(new Error(`Tải lên thất bại (${xhr.status})`));
+								reject(new Error(`Tải lên thất bại (Mã lỗi HTTP: ${xhr.status} - ${xhr.statusText || 'Unknown'})`));
 							}
 						}
 					};
 
-					xhr.onerror = () => reject(new Error('Lỗi kết nối mạng khi tải tệp lên.'));
-					xhr.ontimeout = () => reject(new Error('Hết thời gian chờ (Timeout).'));
+					xhr.onerror = () => reject(new Error('Lỗi kết nối mạng khi tải tệp lên (Network / CORS error).'));
+					xhr.ontimeout = () => reject(new Error('Hết thời gian chờ (Upload timeout).'));
 
 					xhr.send(formData);
 				});
@@ -161,39 +167,40 @@
 			</button>
 		</div>
 
-		<!-- File Selector Input -->
+		<!-- File Selector Input (Native Hidden) -->
 		<input
+			id="mobile-native-file-picker"
 			bind:this={fileInputMobile}
 			onchange={handleFileSelect}
 			type="file"
 			multiple
-			class="hidden"
+			class="sr-only"
 		/>
 
 		<!-- Select Buttons Area -->
 		{#if selectedFiles.length === 0}
-			<button
-				onclick={() => fileInputMobile.click()}
-				class="w-full py-8 px-4 rounded-2xl border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-950/20 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all active:scale-98"
+			<label
+				for="mobile-native-file-picker"
+				class="w-full py-8 px-4 rounded-2xl border-2 border-dashed border-indigo-500/40 hover:border-indigo-400 bg-indigo-950/20 flex flex-col items-center justify-center gap-2 cursor-pointer transition-all active:scale-98 select-none"
 			>
 				<span class="text-3xl">📤</span>
 				<div class="text-center">
 					<div class="text-xs font-bold text-indigo-300">Nhấn vào đây để chọn tệp từ điện thoại</div>
 					<div class="text-[10px] text-zinc-400 mt-0.5">Hỗ trợ Hình ảnh, Video, Tài liệu, Tệp nén...</div>
 				</div>
-			</button>
+			</label>
 		{:else}
 			<!-- Selected Files List -->
 			<div class="space-y-2">
 				<div class="flex items-center justify-between text-xs text-zinc-400">
 					<span>Đã chọn ({selectedFiles.length} tệp):</span>
 					{#if !isUploading}
-						<button
-							onclick={() => fileInputMobile.click()}
+						<label
+							for="mobile-native-file-picker"
 							class="text-indigo-400 hover:underline font-semibold cursor-pointer text-[11px]"
 						>
 							+ Chọn thêm
-						</button>
+						</label>
 					{/if}
 				</div>
 

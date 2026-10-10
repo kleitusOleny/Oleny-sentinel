@@ -70,18 +70,47 @@ public class FileStorageController {
      * Upload 1 hoặc nhiều files vào thư mục
      * POST /api/storage/upload
      */
+    /**
+     * Upload 1 hoặc nhiều files vào thư mục
+     * POST /api/storage/upload
+     */
     @PostMapping(value = "/upload", consumes = MediaType.MULTIPART_FORM_DATA_VALUE)
     public ResponseEntity<?> uploadFiles(
             @RequestParam(value = "path", defaultValue = "") String path,
-            @RequestParam("file") MultipartFile[] files) {
+            @RequestParam(value = "file", required = false) MultipartFile[] files,
+            @RequestParam(value = "files", required = false) MultipartFile[] filesAlt,
+            org.springframework.web.multipart.MultipartHttpServletRequest request) {
         try {
             List<FileItemDto> uploaded = new java.util.ArrayList<>();
-            for (MultipartFile file : files) {
-                if (!file.isEmpty()) {
-                    FileItemDto item = fileStorageService.storeFile(path, file);
-                    uploaded.add(item);
+            List<MultipartFile> allFiles = new java.util.ArrayList<>();
+
+            if (files != null && files.length > 0) {
+                for (MultipartFile f : files) {
+                    if (f != null && !f.isEmpty()) allFiles.add(f);
                 }
             }
+            if (filesAlt != null && filesAlt.length > 0) {
+                for (MultipartFile f : filesAlt) {
+                    if (f != null && !f.isEmpty()) allFiles.add(f);
+                }
+            }
+            if (allFiles.isEmpty() && request != null) {
+                for (List<MultipartFile> partList : request.getMultiFileMap().values()) {
+                    for (MultipartFile f : partList) {
+                        if (f != null && !f.isEmpty()) allFiles.add(f);
+                    }
+                }
+            }
+
+            if (allFiles.isEmpty()) {
+                return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Không tìm thấy tệp tin hợp lệ được tải lên."));
+            }
+
+            for (MultipartFile file : allFiles) {
+                FileItemDto item = fileStorageService.storeFile(path, file);
+                uploaded.add(item);
+            }
+
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "message", "Đã tải lên thành công " + uploaded.size() + " tệp tin.",
