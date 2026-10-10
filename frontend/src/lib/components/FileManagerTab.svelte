@@ -14,19 +14,21 @@
 
 	interface Props {
 		apiBase: string;
+		initialSearchQuery?: string;
+		initialPath?: string;
 		onpreview: (item: FileItem) => void;
 		ondownload: (item: FileItem) => void;
 	}
 
-	let { apiBase, onpreview, ondownload }: Props = $props();
+	let { apiBase, initialSearchQuery = '', initialPath = '', onpreview, ondownload }: Props = $props();
 
 	// State
-	let currentPath = $state('');
+	let currentPath = $state(initialPath);
 	let items = $state<FileItem[]>([]);
 	let isLoading = $state(false);
 	let errorMessage = $state('');
 	let viewMode = $state<'table' | 'grid'>('table');
-	let searchQuery = $state('');
+	let searchQuery = $state(initialSearchQuery);
 	let fileInputRef: HTMLInputElement;
 
 	// New Folder Dialog
@@ -213,7 +215,7 @@
 	}
 
 	onMount(() => {
-		loadDirectory('');
+		loadDirectory(currentPath);
 	});
 </script>
 <div class="space-y-5 animate-fadeIn">

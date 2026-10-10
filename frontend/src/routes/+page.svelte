@@ -52,6 +52,8 @@
 	let activePreviewContent = $state('');
 	let activePreviewUrl = $state('');
 	let isFilePreviewLoading = $state(false);
+	let filesInitialSearchQuery = $state('');
+	let filesInitialPath = $state('');
 
 	async function handleOpenFilePreview(item: { name: string; path: string; size: number }) {
 		activePreviewItem = item;
@@ -368,7 +370,14 @@
 					<HomeTab 
 						containers={containers} 
 						systemStats={systemStats} 
-						onnavigateTab={(tab) => (activeTab = tab)} 
+						apiBase={API_BASE}
+						onnavigateTab={(tab) => (activeTab = tab)}
+						onopenFilePreview={handleOpenFilePreview}
+						onnavigateFiles={(query, path) => {
+							filesInitialSearchQuery = query || '';
+							filesInitialPath = path || '';
+							activeTab = 'files';
+						}}
 					/>
 				{/if}
 
@@ -527,6 +536,8 @@
 					<section class="space-y-6">
 						<FileManagerTab 
 							apiBase={API_BASE} 
+							initialSearchQuery={filesInitialSearchQuery}
+							initialPath={filesInitialPath}
 							onpreview={handleOpenFilePreview}
 							ondownload={handleDownloadFile}
 						/>

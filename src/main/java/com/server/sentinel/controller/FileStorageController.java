@@ -47,6 +47,26 @@ public class FileStorageController {
     }
 
     /**
+     * Tìm kiếm tệp tin & thư mục đệ quy
+     * GET /api/storage/search?q=query&limit=30
+     */
+    @GetMapping("/search")
+    public ResponseEntity<?> searchFiles(
+            @RequestParam("q") String query,
+            @RequestParam(value = "limit", defaultValue = "30") int limit) {
+        try {
+            List<FileItemDto> files = fileStorageService.searchFiles(query, limit);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "query", query,
+                    "items", files
+            ));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
      * Upload 1 hoặc nhiều files vào thư mục
      * POST /api/storage/upload
      */

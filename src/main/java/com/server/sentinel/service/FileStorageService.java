@@ -97,6 +97,53 @@ public class FileStorageService {
     }
 
     /**
+     * Tìm kiếm tệp tin & thư mục đệ quy theo từ khóa
+     */
+    public List<FileItemDto> searchFiles(String query, int maxResults) throws IOException {
+        if (query == null || query.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        String lowerQuery = query.trim().toLowerCase();
+        int limit = maxResults > 0 ? maxResults : 50;
+        List<FileItemDto> results = new ArrayList<>();
+
+        if (!Files.exists(rootStoragePath)) {
+            return results;
+        }
+
+        try (Stream<Path> stream = Files.walk(rootStoragePath)) {
+            Iterator<Path> iterator = stream.iterator();
+            while (iterator.hasNext() && results.size() < limit) {
+                Path path = iterator.next();
+                if (path.equals(rootStoragePath)) continue;
+
+                String name = path.getFileName().toString();
+                if (name.toLowerCase().contains(lowerQuery)) {
+                    BasicFileAttributes attrs = Files.readAttributes(path, BasicFileAttributes.class);
+                    String relPath = rootStoragePath.relativize(path).toString().replace("\\", "/");
+                    boolean isDir = attrs.isDirectory();
+                    long size = isDir ? 0 : attrs.size();
+                    long lastModified = attrs.lastModifiedTime().toMillis();
+                    String ext = isDir ? "" : getFileExtension(name);
+                    String mimeType = isDir ? "directory" : guessMimeType(name);
+
+                    results.add(new FileItemDto(name, relPath, size, isDir, lastModified, ext, mimeType));
+                }
+            }
+        }
+
+        // Sắp xếp: Tệp/thư mục khớp
+        results.sort((a, b) -> {
+            if (a.isDirectory() && !b.isDirectory()) return -1;
+            if (!a.isDirectory() && b.isDirectory()) return 1;
+            return a.getName().compareToIgnoreCase(b.getName());
+        });
+
+        return results;
+    }
+
+    /**
      * Tải lên một hoặc nhiều tệp tin
      */
     public FileItemDto storeFile(String targetSubDir, MultipartFile file) throws IOException {

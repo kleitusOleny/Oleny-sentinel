@@ -34,13 +34,33 @@
 		order: number;
 	}
 
+	interface FileItem {
+		name: string;
+		path: string;
+		size: number;
+		directory: boolean;
+		lastModified: number;
+		extension: string;
+		mimeType: string;
+	}
+
 	interface Props {
 		containers: ContainerItem[];
 		systemStats: any | null;
+		apiBase?: string;
 		onnavigateTab: (tab: string) => void;
+		onopenFilePreview?: (item: { name: string; path: string; size: number }) => void;
+		onnavigateFiles?: (query?: string, path?: string) => void;
 	}
 
-	let { containers = [], systemStats = null, onnavigateTab }: Props = $props();
+	let { 
+		containers = [], 
+		systemStats = null, 
+		apiBase = '/api',
+		onnavigateTab,
+		onopenFilePreview,
+		onnavigateFiles
+	}: Props = $props();
 
 	// --- 1. CLOCK & DATE STATES ---
 	let currentTime = $state('');
@@ -119,12 +139,42 @@
 		{ id: 'files', label: 'Files' }
 	];
 
+	let matchedFiles = $state<FileItem[]>([]);
+	let isSearchingFiles = $state(false);
+
 	function handleSearchInput() {
 		selectedSuggestionIndex = -1;
 		clearTimeout(suggestDebounce);
 
-		if (!searchQuery.trim() || searchEngine === 'containers' || searchEngine === 'files') {
+		if (!searchQuery.trim()) {
 			suggestions = [];
+			matchedFiles = [];
+			return;
+		}
+
+		if (searchEngine === 'containers') {
+			suggestions = [];
+			return;
+		}
+
+		if (searchEngine === 'files') {
+			suggestions = [];
+			isSearchingFiles = true;
+			suggestDebounce = setTimeout(async () => {
+				try {
+					const res = await fetch(`${apiBase}/storage/search?q=${encodeURIComponent(searchQuery.trim())}&limit=20`);
+					if (res.ok) {
+						const data = await res.json();
+						matchedFiles = data.items || [];
+					} else {
+						matchedFiles = [];
+					}
+				} catch {
+					matchedFiles = [];
+				} finally {
+					isSearchingFiles = false;
+				}
+			}, 250);
 			return;
 		}
 
@@ -153,7 +203,11 @@
 		} else if (searchEngine === 'containers') {
 			onnavigateTab('containers');
 		} else if (searchEngine === 'files') {
-			onnavigateTab('files');
+			if (onnavigateFiles) {
+				onnavigateFiles(q, '');
+			} else {
+				onnavigateTab('files');
+			}
 		}
 	}
 
@@ -646,6 +700,69 @@
 								</div>
 								<div class="text-[10px] font-mono text-zinc-500 truncate mt-1">
 									{c.Image || c.image || ''}
+								</div>
+							</button>
+						{/each}
+					</div>
+				{/if}
+			</div>
+		{/if}
+
+		<!-- Live Inline Matched Files -->
+		{#if searchEngine === 'files' && searchQuery.trim()}
+			<div class="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-3">
+				<div class="flex items-center justify-between">
+					<div class="text-xs font-bold text-zinc-300 flex items-center gap-2">
+						<svg class="w-4 h-4 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+						</svg>
+						<span>Files & Folders ({matchedFiles.length}):</span>
+					</div>
+					{#if matchedFiles.length > 0}
+						<button
+							onclick={() => executeSearch()}
+							class="text-[11px] text-indigo-400 hover:text-indigo-300 font-bold hover:underline cursor-pointer"
+						>
+							View in File Manager →
+						</button>
+					{/if}
+				</div>
+
+				{#if isSearchingFiles}
+					<div class="flex items-center gap-2 text-xs text-zinc-500 py-3">
+						<span class="w-3.5 h-3.5 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin"></span>
+						<span>Searching files on server storage...</span>
+					</div>
+				{:else if matchedFiles.length === 0}
+					<div class="text-xs text-zinc-500 italic py-2">No files or folders matching "{searchQuery}".</div>
+				{:else}
+					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+						{#each matchedFiles as f}
+							<button
+								onclick={() => {
+									if (f.directory) {
+										if (onnavigateFiles) onnavigateFiles('', f.path);
+										else onnavigateTab('files');
+									} else {
+										if (onopenFilePreview) onopenFilePreview({ name: f.name, path: f.path, size: f.size });
+										else if (onnavigateFiles) onnavigateFiles(f.name, '');
+										else onnavigateTab('files');
+									}
+								}}
+								class="text-left p-3 rounded-xl bg-zinc-950/60 border border-zinc-800 hover:border-indigo-500/60 hover:bg-zinc-900/60 transition-all cursor-pointer group flex items-start gap-2.5"
+							>
+								{#if f.directory}
+									<span class="text-amber-400 text-lg select-none">📁</span>
+								{:else}
+									<span class="text-indigo-400 text-lg select-none">📄</span>
+								{/if}
+								<div class="truncate flex-1">
+									<div class="text-xs font-bold text-zinc-200 group-hover:text-indigo-300 truncate">
+										{f.name}
+									</div>
+									<div class="text-[10px] font-mono text-zinc-500 truncate mt-0.5">
+										{f.path}
+									</div>
 								</div>
 							</button>
 						{/each}
