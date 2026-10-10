@@ -196,8 +196,36 @@
 	let extractTargetName = $state('');
 
 	function isArchive(ext: string): boolean {
-		const lower = ext.toLowerCase();
-		return lower === 'zip' || lower === 'rar';
+		const lower = (ext || '').toLowerCase();
+		return ['zip', 'rar', '7z', 'tar', 'gz', 'bz2', 'xz'].includes(lower);
+	}
+
+	function isImage(ext: string): boolean {
+		const lower = (ext || '').toLowerCase();
+		return ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif'].includes(lower);
+	}
+
+	function isPdf(ext: string): boolean {
+		return (ext || '').toLowerCase() === 'pdf';
+	}
+
+	function isExcel(ext: string): boolean {
+		const lower = (ext || '').toLowerCase();
+		return ['xlsx', 'xls', 'csv', 'ods'].includes(lower);
+	}
+
+	function isWord(ext: string): boolean {
+		const lower = (ext || '').toLowerCase();
+		return ['docx', 'doc', 'odt', 'rtf'].includes(lower);
+	}
+
+	function isPowerpoint(ext: string): boolean {
+		const lower = (ext || '').toLowerCase();
+		return ['pptx', 'ppt', 'odp'].includes(lower);
+	}
+
+	function getRawFileUrl(path: string): string {
+		return `${apiBase}/storage/raw?path=${encodeURIComponent(path)}`;
 	}
 
 	async function handleExtractArchive(item: FileItem) {
@@ -226,7 +254,7 @@
 	function isPreviewable(ext: string): boolean {
 		const lower = ext.toLowerCase();
 		const textExts = ['txt', 'log', 'json', 'yml', 'yaml', 'xml', 'md', 'env', 'properties', 'js', 'ts', 'html', 'css', 'sh', 'sql', 'csv'];
-		const mediaExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'mp4', 'webm', 'ogg', 'mov', 'mkv', 'mp3', 'wav', 'pdf'];
+		const mediaExts = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'svg', 'ico', 'bmp', 'avif', 'mp4', 'webm', 'ogg', 'mov', 'mkv', 'mp3', 'wav', 'pdf'];
 		return textExts.includes(lower) || mediaExts.includes(lower);
 	}
 
@@ -448,11 +476,46 @@
 											{item.name}
 										</button>
 									{:else}
-										<div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0">
-											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-												<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-											</svg>
-										</div>
+										{#if isImage(item.extension)}
+											<div class="w-8 h-8 rounded-lg overflow-hidden bg-zinc-950 border border-zinc-800 shrink-0 flex items-center justify-center">
+												<img
+													src={getRawFileUrl(item.path)}
+													alt={item.name}
+													loading="lazy"
+													class="w-full h-full object-cover"
+													onerror={(e) => {
+														const target = e.currentTarget as HTMLImageElement;
+														target.style.display = 'none';
+													}}
+												/>
+											</div>
+										{:else if isPdf(item.extension)}
+											<div class="px-2 py-1 rounded-lg bg-rose-500/15 text-rose-400 border border-rose-500/20 font-bold text-[10px] shrink-0 font-mono tracking-wider">
+												PDF
+											</div>
+										{:else if isExcel(item.extension)}
+											<div class="px-2 py-1 rounded-lg bg-emerald-500/15 text-emerald-400 border border-emerald-500/20 font-bold text-[10px] shrink-0 font-mono tracking-wider">
+												XLS
+											</div>
+										{:else if isWord(item.extension)}
+											<div class="px-2 py-1 rounded-lg bg-blue-500/15 text-blue-400 border border-blue-500/20 font-bold text-[10px] shrink-0 font-mono tracking-wider">
+												DOC
+											</div>
+										{:else if isPowerpoint(item.extension)}
+											<div class="px-2 py-1 rounded-lg bg-orange-500/15 text-orange-400 border border-orange-500/20 font-bold text-[10px] shrink-0 font-mono tracking-wider">
+												PPT
+											</div>
+										{:else if isArchive(item.extension)}
+											<div class="px-2 py-1 rounded-lg bg-amber-500/15 text-amber-400 border border-amber-500/20 font-bold text-[10px] shrink-0 font-mono tracking-wider">
+												ZIP
+											</div>
+										{:else}
+											<div class="p-2 rounded-xl bg-indigo-500/10 text-indigo-400 shrink-0">
+												<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+													<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+												</svg>
+											</div>
+										{/if}
 										<span class="text-zinc-300 font-normal truncate max-w-md">{item.name}</span>
 									{/if}
 								</td>
@@ -546,11 +609,74 @@
 						</button>
 					{:else}
 						<div class="flex flex-col items-center text-center space-y-2 w-full">
-							<div class="p-3 rounded-2xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition-transform">
-								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
-									<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-								</svg>
-							</div>
+							{#if isImage(item.extension)}
+								<!-- Thumbnail Xem Trước Cho File Hình Ảnh -->
+								<button
+									onclick={() => onpreview(item)}
+									class="w-full h-28 rounded-xl overflow-hidden bg-zinc-950/80 border border-zinc-800/80 flex items-center justify-center group-hover:border-indigo-500/50 transition-all cursor-pointer relative shadow-inner"
+									title="Xem trước ảnh"
+								>
+									<img
+										src={getRawFileUrl(item.path)}
+										alt={item.name}
+										loading="lazy"
+										class="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
+										onerror={(e) => {
+											const target = e.currentTarget as HTMLImageElement;
+											target.style.display = 'none';
+										}}
+									/>
+									<div class="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+										<span class="p-1.5 rounded-full bg-black/60 text-white backdrop-blur-sm">
+											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+												<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636ZM10.5 7.5v6m3-3h-6" />
+											</svg>
+										</span>
+									</div>
+								</button>
+							{:else if isPdf(item.extension)}
+								<div class="w-16 h-16 rounded-2xl bg-rose-500/10 border border-rose-500/20 text-rose-400 flex flex-col items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-rose-950/20">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-7 h-7">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+									</svg>
+									<span class="text-[9px] font-bold font-mono tracking-wider -mt-0.5">PDF</span>
+								</div>
+							{:else if isExcel(item.extension)}
+								<div class="w-16 h-16 rounded-2xl bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex flex-col items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-emerald-950/20">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-7 h-7">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25A2.25 2.25 0 0 1 13.5 18v-2.25Z" />
+									</svg>
+									<span class="text-[9px] font-bold font-mono tracking-wider -mt-0.5">EXCEL</span>
+								</div>
+							{:else if isWord(item.extension)}
+								<div class="w-16 h-16 rounded-2xl bg-blue-500/10 border border-blue-500/20 text-blue-400 flex flex-col items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-blue-950/20">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-7 h-7">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+									</svg>
+									<span class="text-[9px] font-bold font-mono tracking-wider -mt-0.5">WORD</span>
+								</div>
+							{:else if isPowerpoint(item.extension)}
+								<div class="w-16 h-16 rounded-2xl bg-orange-500/10 border border-orange-500/20 text-orange-400 flex flex-col items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-orange-950/20">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-7 h-7">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
+									</svg>
+									<span class="text-[9px] font-bold font-mono tracking-wider -mt-0.5">PPT</span>
+								</div>
+							{:else if isArchive(item.extension)}
+								<div class="w-16 h-16 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-amber-400 flex flex-col items-center justify-center group-hover:scale-110 transition-transform shadow-lg shadow-amber-950/20">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-7 h-7">
+										<path stroke-linecap="round" stroke-linejoin="round" d="m20.25 7.5-.625 10.632a2.25 2.25 0 0 1-2.247 2.118H6.622a2.25 2.25 0 0 1-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125Z" />
+									</svg>
+									<span class="text-[9px] font-bold font-mono tracking-wider -mt-0.5">ZIP</span>
+								</div>
+							{:else}
+								<div class="p-3.5 rounded-2xl bg-indigo-500/10 text-indigo-400 group-hover:scale-110 transition-transform">
+									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-8 h-8">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+									</svg>
+								</div>
+							{/if}
+
 							<span class="text-xs font-medium text-zinc-200 truncate w-full" title={item.name}>
 								{item.name}
 							</span>
