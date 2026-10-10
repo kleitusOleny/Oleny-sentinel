@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 
 	interface ContainerItem {
@@ -186,19 +186,36 @@
 
 	// --- 4. SHORTCUTS / SERVICES MANAGEMENT ---
 	const DEFAULT_SHORTCUTS: ShortcutItem[] = [
-		{ id: '1', title: 'Portainer', url: 'http://100.94.177.113:9000', icon: '🐳', color: 'from-blue-600 to-cyan-500' },
-		{ id: '2', title: 'GitHub', url: 'https://github.com', icon: '🐙', color: 'from-zinc-800 to-zinc-700' },
-		{ id: '3', title: 'YouTube', url: 'https://youtube.com', icon: '▶️', color: 'from-red-600 to-rose-600' },
-		{ id: '4', title: 'Cloudflare', url: 'https://dash.cloudflare.com', icon: '☁️', color: 'from-amber-500 to-orange-600' },
-		{ id: '5', title: 'Plex / Media', url: 'http://100.94.177.113:32400', icon: '🎬', color: 'from-yellow-500 to-amber-600' },
-		{ id: '6', title: 'Discord Web', url: 'https://discord.com/app', icon: '💬', color: 'from-indigo-600 to-violet-600' }
+		{ id: '1', title: 'Portainer', url: 'http://100.94.177.113:9000', color: 'from-blue-600 to-cyan-500' },
+		{ id: '2', title: 'GitHub', url: 'https://github.com', color: 'from-zinc-800 to-zinc-700' },
+		{ id: '3', title: 'YouTube', url: 'https://youtube.com', color: 'from-red-600 to-rose-600' },
+		{ id: '4', title: 'Cloudflare', url: 'https://dash.cloudflare.com', color: 'from-amber-500 to-orange-600' },
+		{ id: '5', title: 'Plex / Media', url: 'http://100.94.177.113:32400', color: 'from-yellow-500 to-amber-600' },
+		{ id: '6', title: 'Discord Web', url: 'https://discord.com/app', color: 'from-indigo-600 to-violet-600' }
 	];
 
 	let shortcuts = $state<ShortcutItem[]>([]);
 	let showAddShortcutModal = $state(false);
 	let newShortcutTitle = $state('');
 	let newShortcutUrl = $state('');
-	let newShortcutIcon = $state('🌐');
+	let failedFaviconSet = $state<Set<string>>(new Set());
+
+	// Hàm lấy URL favicon (.ico) từ Google Favicon Service hoặc trực tiếp từ domain
+	function getFaviconUrl(rawUrl: string): string {
+		try {
+			const parsed = new URL(rawUrl);
+			// Dùng dịch vụ favicon chuẩn của Google để lấy icon .ico/png 64px mượt mà
+			return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`;
+		} catch {
+			return '';
+		}
+	}
+
+	function handleFaviconError(id: string) {
+		const updated = new Set(failedFaviconSet);
+		updated.add(id);
+		failedFaviconSet = updated;
+	}
 
 	function loadShortcuts() {
 		try {
@@ -230,7 +247,6 @@
 				id: Date.now().toString(),
 				title: newShortcutTitle.trim(),
 				url: formattedUrl,
-				icon: newShortcutIcon.trim() || '🌐',
 				color: 'from-indigo-600 to-violet-600'
 			}
 		];
@@ -238,7 +254,6 @@
 		showAddShortcutModal = false;
 		newShortcutTitle = '';
 		newShortcutUrl = '';
-		newShortcutIcon = '🌐';
 	}
 
 	function removeShortcut(id: string, e: MouseEvent) {
@@ -525,8 +540,18 @@
 						</svg>
 					</button>
 
-					<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-gradient-to-br {s.color || 'from-indigo-600 to-violet-600'} shadow-lg shadow-black/40 group-hover:scale-110 transition-transform">
-						{s.icon || '🌐'}
+					<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-zinc-800/80 border border-zinc-700/60 shadow-lg shadow-black/40 group-hover:scale-110 transition-transform overflow-hidden p-2">
+						{#if !failedFaviconSet.has(s.id) && getFaviconUrl(s.url)}
+							<img
+								src={getFaviconUrl(s.url)}
+								alt={s.title}
+								onerror={() => handleFaviconError(s.id)}
+								class="w-7 h-7 object-contain rounded"
+								loading="lazy"
+							/>
+						{:else}
+							<span class="select-none text-2xl">🌐</span>
+						{/if}
 					</div>
 					<span class="mt-2.5 text-xs font-bold text-zinc-300 group-hover:text-white truncate max-w-full text-center">
 						{s.title}
@@ -684,14 +709,8 @@
 					/>
 				</div>
 
-				<div>
-					<label class="block text-zinc-400 mb-1 font-semibold">Biểu tượng Emoji</label>
-					<input
-						type="text"
-						bind:value={newShortcutIcon}
-						placeholder="Ví dụ: 🐳, 🚀, 📊, ⚡"
-						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
-					/>
+				<div class="text-[11px] text-zinc-500 italic">
+					* Biểu tượng .ico sẽ được tự động trích xuất từ trang web. Nếu trang web không có, biểu tượng 🌐 sẽ được dùng làm mặc định.
 				</div>
 			</div>
 
