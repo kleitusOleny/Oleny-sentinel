@@ -443,10 +443,10 @@
 				<!-- Action Submit Button -->
 				<button
 					onclick={() => executeSearch()}
-					class="shrink-0 p-3 bg-gradient-to-r from-indigo-600 to-cyan-600 hover:from-indigo-500 hover:to-cyan-500 text-white rounded-2xl font-bold cursor-pointer transition-all shadow-md shadow-indigo-950/50 hover:scale-105 active:scale-95"
+					class="shrink-0 p-3 bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-2xl cursor-pointer transition-colors"
 					title="Tìm kiếm"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-5 h-5">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
 						<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
 					</svg>
 				</button>

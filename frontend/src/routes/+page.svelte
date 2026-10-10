@@ -344,13 +344,15 @@
 		<main class="flex-1 flex flex-col h-screen overflow-y-auto min-w-0 bg-gradient-to-b from-zinc-950 via-zinc-950 to-zinc-900/40 pb-20 md:pb-8">
 			<div class="p-4 md:p-8 space-y-6 max-w-7xl w-full mx-auto animate-fadeIn">
 
-				<!-- TOP DYNAMIC HEADER -->
-				<Header
-					title={tabTitle}
-					subtitle={tabSubtitle}
-					isLoading={isLoading}
-					onrefresh={fetchData}
-				/>
+				<!-- TOP DYNAMIC HEADER (Ẩn khi ở tab Home) -->
+				{#if activeTab !== 'home'}
+					<Header
+						title={tabTitle}
+						subtitle={tabSubtitle}
+						isLoading={isLoading}
+						onrefresh={fetchData}
+					/>
+				{/if}
 
 				<!-- ERROR ALERT BANNER -->
 				{#if errorMessage}
