@@ -12,6 +12,7 @@
 	import FilePreviewModal from '$lib/components/FilePreviewModal.svelte';
 	import QrScanModal from '$lib/components/QrScanModal.svelte';
 	import TransferQueueFloatingButton from '$lib/components/TransferQueueFloatingButton.svelte';
+	import HomeTab from '$lib/components/HomeTab.svelte';
 	import { transferQueue } from '$lib/stores/transferQueue.svelte';
 
 	const API_BASE = '/api';
@@ -21,7 +22,7 @@
 
 	// Navigation & Layout states
 	let sidebarCollapsed = $state(false);
-	let activeTab = $state('overview'); // 'overview' | 'containers' | 'settings' | 'files'
+	let activeTab = $state('home'); // 'home' | 'overview' | 'containers' | 'settings' | 'files'
 	let isQrScanModalOpen = $state(false);
 	let notificationToast = $state('');
 
@@ -303,6 +304,7 @@
 
 	// Dynamic page title / subtitle
 	let tabTitle = $derived.by(() => {
+		if (activeTab === 'home') return 'Trang chủ & Trung tâm Tìm kiếm';
 		if (activeTab === 'containers') return 'Quản lý Docker Containers';
 		if (activeTab === 'files') return 'Quản lý Tệp tin & Thư mục Hệ thống';
 		if (activeTab === 'settings') return 'Cấu hình Cảnh báo & Discord Bot';
@@ -310,6 +312,7 @@
 	});
 
 	let tabSubtitle = $derived.by(() => {
+		if (activeTab === 'home') return 'Tìm kiếm Bing, Google, phím tắt dịch vụ nhanh và module tiện ích tùy biến';
 		if (activeTab === 'containers') return 'Theo dõi trạng thái, nhật ký logs và quản lý Auto-Heal tự động hồi phục';
 		if (activeTab === 'files') return 'Duyệt cây thư mục máy chủ, tải lên, xem trước nội dung text/logs và quản lý an toàn';
 		if (activeTab === 'settings') return 'Thiết lập ngưỡng cảnh báo quá tải CPU/RAM và thông báo tới Discord Webhook/Bot';
@@ -360,6 +363,15 @@
 							<p class="text-sm mt-0.5">{errorMessage}</p>
 						</div>
 					</div>
+				{/if}
+
+				<!-- TAB CONTENT: HOME (SEARCH & DASHBOARD) -->
+				{#if activeTab === 'home'}
+					<HomeTab 
+						containers={containers} 
+						systemStats={systemStats} 
+						onnavigateTab={(tab) => (activeTab = tab)} 
+					/>
 				{/if}
 
 				<!-- TAB CONTENT: OVERVIEW -->
