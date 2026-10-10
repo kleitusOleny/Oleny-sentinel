@@ -105,11 +105,19 @@
 	// --- 3. SMART OMNI SEARCH BAR ---
 	type SearchEngine = 'bing' | 'google' | 'containers' | 'files';
 	let searchEngine = $state<SearchEngine>('bing');
+	let isEngineMenuOpen = $state(false);
 	let searchQuery = $state('');
 	let suggestions = $state<string[]>([]);
 	let selectedSuggestionIndex = $state(-1);
 	let isInputFocused = $state(false);
 	let suggestDebounce: any;
+
+	const searchEngines: { id: SearchEngine; label: string }[] = [
+		{ id: 'bing', label: 'Bing' },
+		{ id: 'google', label: 'Google' },
+		{ id: 'containers', label: 'Docker Containers' },
+		{ id: 'files', label: 'Files' }
+	];
 
 	function handleSearchInput() {
 		selectedSuggestionIndex = -1;
@@ -287,7 +295,7 @@
 			title: 'System Specs',
 			description: 'Real-time CPU, RAM, Disk usage, Platform info and Server Uptime metrics.',
 			category: 'Monitoring',
-			icon: '📊',
+			icon: 'metrics',
 			visible: true,
 			order: 0
 		},
@@ -296,7 +304,7 @@
 			title: 'Docker Containers',
 			description: 'Live overview of active Docker containers, health status, and quick inspect links.',
 			category: 'Docker',
-			icon: '🐳',
+			icon: 'docker',
 			visible: true,
 			order: 1
 		},
@@ -305,7 +313,7 @@
 			title: 'Scratchpad',
 			description: 'Instant local memo pad for server notes, IPs, commands or temporary ideas.',
 			category: 'Utilities',
-			icon: '📝',
+			icon: 'scratchpad',
 			visible: true,
 			order: 2
 		}
@@ -439,22 +447,128 @@
 	<div class="space-y-3 relative z-20">
 		<div class="relative bg-zinc-900/70 backdrop-blur-2xl border-2 border-zinc-700/80 focus-within:border-indigo-500 rounded-3xl p-2 shadow-2xl transition-all duration-300">
 			<div class="flex items-center gap-2">
-				<!-- Search Engine Dropdown / Toggle -->
+				<!-- Search Engine Dropdown / Toggle with Real SVG Logos -->
 				<div class="relative shrink-0">
-					<select
-						bind:value={searchEngine}
-						class="bg-zinc-800 hover:bg-zinc-750 text-xs font-bold text-zinc-200 py-2.5 px-3 rounded-2xl border border-zinc-700/80 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer appearance-none pr-8 transition-colors"
+					<button
+						type="button"
+						onclick={() => (isEngineMenuOpen = !isEngineMenuOpen)}
+						class="bg-zinc-800 hover:bg-zinc-750 text-xs font-bold text-zinc-200 py-2.5 px-3 rounded-2xl border border-zinc-700/80 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer flex items-center gap-2 transition-colors select-none shadow-sm"
+						title="Choose search engine"
 					>
-						<option value="bing">🌐 Bing</option>
-						<option value="google">🔍 Google</option>
-						<option value="containers">🐳 Containers</option>
-						<option value="files">📁 Files</option>
-					</select>
-					<div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+						{#if searchEngine === 'bing'}
+							<!-- Microsoft Bing Official Logo -->
+							<svg class="w-4 h-4 shrink-0" viewBox="0 0 32 32">
+								<defs>
+									<linearGradient id="bingGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+										<stop offset="0%" stop-color="#008AD7"/>
+										<stop offset="100%" stop-color="#005B9E"/>
+									</linearGradient>
+								</defs>
+								<path fill="url(#bingGrad)" d="M5.5 3v24.2l7.7 4.5 12.3-7.2-5.4-3.2-6.9 3.2V8.9l-7.7-5.9z"/>
+								<path fill="#0083D0" d="M13.2 8.9v18.3l6.9-3.2 5.4 3.2V16.8L13.2 8.9z"/>
+							</svg>
+							<span>Bing</span>
+						{:else if searchEngine === 'google'}
+							<!-- Google Official Color Logo -->
+							<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+								<path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3h3.88c2.28-2.1 3.665-5.2 3.665-9.09z"/>
+								<path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.1C3.25 21.36 7.33 24 12 24z"/>
+								<path fill="#FBBC05" d="M5.28 14.32c-.25-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.58H1.26C.46 8.17 0 9.97 0 12s.46 3.83 1.26 5.42l4.02-3.1z"/>
+								<path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.25 2.64 1.26 6.58l4.02 3.1c.95-2.83 3.6-4.93 6.72-4.93z"/>
+							</svg>
+							<span>Google</span>
+						{:else if searchEngine === 'containers'}
+							<!-- Docker Official Whale Logo -->
+							<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#0db7ed">
+								<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+							</svg>
+							<span>Containers</span>
+						{:else}
+							<svg class="w-4 h-4 shrink-0 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+								<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+							</svg>
+							<span>Files</span>
+						{/if}
+
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3 h-3 text-zinc-400 transition-transform {isEngineMenuOpen ? 'rotate-180' : ''}">
 							<path stroke-linecap="round" stroke-linejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
 						</svg>
-					</div>
+					</button>
+
+					<!-- Custom Dropdown Menu with Authentic Logos -->
+					{#if isEngineMenuOpen}
+						<div class="absolute left-0 top-full mt-2 w-48 bg-zinc-900 border border-zinc-700/80 rounded-2xl shadow-2xl p-1.5 z-50 space-y-1 animate-fadeIn">
+							<!-- Bing Option -->
+							<button
+								type="button"
+								onclick={() => {
+									searchEngine = 'bing';
+									isEngineMenuOpen = false;
+								}}
+								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-colors cursor-pointer {searchEngine === 'bing' ? 'bg-indigo-600/25 text-indigo-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'}"
+							>
+								<svg class="w-4 h-4 shrink-0" viewBox="0 0 32 32">
+									<defs>
+										<linearGradient id="bingGradOpt" x1="0%" y1="0%" x2="100%" y2="100%">
+											<stop offset="0%" stop-color="#008AD7"/>
+											<stop offset="100%" stop-color="#005B9E"/>
+										</linearGradient>
+									</defs>
+									<path fill="url(#bingGradOpt)" d="M5.5 3v24.2l7.7 4.5 12.3-7.2-5.4-3.2-6.9 3.2V8.9l-7.7-5.9z"/>
+									<path fill="#0083D0" d="M13.2 8.9v18.3l6.9-3.2 5.4 3.2V16.8L13.2 8.9z"/>
+								</svg>
+								<span>Bing</span>
+							</button>
+
+							<!-- Google Option -->
+							<button
+								type="button"
+								onclick={() => {
+									searchEngine = 'google';
+									isEngineMenuOpen = false;
+								}}
+								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-colors cursor-pointer {searchEngine === 'google' ? 'bg-indigo-600/25 text-indigo-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'}"
+							>
+								<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24">
+									<path fill="#4285F4" d="M23.745 12.27c0-.7-.06-1.4-.19-2.07H12v4.51h6.6c-.29 1.52-1.14 2.8-2.4 3.65v3h3.88c2.28-2.1 3.665-5.2 3.665-9.09z"/>
+									<path fill="#34A853" d="M12 24c3.24 0 5.95-1.08 7.93-2.91l-3.88-3c-1.08.72-2.45 1.16-4.05 1.16-3.12 0-5.77-2.1-6.72-4.93H1.26v3.1C3.25 21.36 7.33 24 12 24z"/>
+									<path fill="#FBBC05" d="M5.28 14.32c-.25-.72-.38-1.49-.38-2.32s.14-1.6.38-2.32V6.58H1.26C.46 8.17 0 9.97 0 12s.46 3.83 1.26 5.42l4.02-3.1z"/>
+									<path fill="#EA4335" d="M12 4.75c1.77 0 3.35.61 4.6 1.8l3.42-3.42C17.95 1.19 15.24 0 12 0 7.33 0 3.25 2.64 1.26 6.58l4.02 3.1c.95-2.83 3.6-4.93 6.72-4.93z"/>
+								</svg>
+								<span>Google</span>
+							</button>
+
+							<!-- Docker Containers Option -->
+							<button
+								type="button"
+								onclick={() => {
+									searchEngine = 'containers';
+									isEngineMenuOpen = false;
+								}}
+								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-colors cursor-pointer {searchEngine === 'containers' ? 'bg-indigo-600/25 text-indigo-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'}"
+							>
+								<svg class="w-4 h-4 shrink-0" viewBox="0 0 24 24" fill="#0db7ed">
+									<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+								</svg>
+								<span>Docker Containers</span>
+							</button>
+
+							<!-- Files Option -->
+							<button
+								type="button"
+								onclick={() => {
+									searchEngine = 'files';
+									isEngineMenuOpen = false;
+								}}
+								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center gap-2.5 transition-colors cursor-pointer {searchEngine === 'files' ? 'bg-indigo-600/25 text-indigo-300 font-bold' : 'text-zinc-300 hover:bg-zinc-800 hover:text-white'}"
+							>
+								<svg class="w-4 h-4 shrink-0 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M2.25 12.75V12A2.25 2.25 0 0 1 4.5 9.75h15A2.25 2.25 0 0 1 21.75 12v.75m-8.69-6.44-2.12-2.12a1.5 1.5 0 0 0-1.061-.44H4.5A2.25 2.25 0 0 0 2.25 6v12a2.25 2.25 0 0 0 2.25 2.25h15A2.25 2.25 0 0 0 21.75 18V9a2.25 2.25 0 0 0-2.25-2.25h-5.379a1.5 1.5 0 0 1-1.06-.44Z" />
+								</svg>
+								<span>Files</span>
+							</button>
+						</div>
+					{/if}
 				</div>
 
 				<!-- Main Input Field -->
@@ -772,9 +886,24 @@
 				{#each modules as m (m.id)}
 					<div class="p-4 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-4 {m.visible ? 'bg-indigo-600/10 border-indigo-500/40' : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'}">
 						<div class="flex items-start gap-3.5">
-							<span class="text-2xl select-none shrink-0 p-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50">
-								{m.icon || '📦'}
-							</span>
+							<div class="w-10 h-10 rounded-xl bg-zinc-800/80 border border-zinc-700/50 flex items-center justify-center shrink-0 p-2">
+								{#if m.id === 'container_glance'}
+									<!-- Real Docker Logo -->
+									<svg class="w-6 h-6" viewBox="0 0 24 24" fill="#0db7ed">
+										<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+									</svg>
+								{:else if m.id === 'system_metrics'}
+									<!-- Real System Metrics SVG -->
+									<svg class="w-5 h-5 text-indigo-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+									</svg>
+								{:else}
+									<!-- Real Scratchpad SVG -->
+									<svg class="w-5 h-5 text-amber-400" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor">
+										<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+									</svg>
+								{/if}
+							</div>
 							<div>
 								<div class="flex items-center gap-2">
 									<h4 class="text-sm font-bold text-zinc-100">{m.title}</h4>

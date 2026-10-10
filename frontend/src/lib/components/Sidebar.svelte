@@ -128,16 +128,27 @@
 				class="w-full flex items-center gap-3.5 px-3.5 py-3 rounded-xl text-sm font-semibold transition-all cursor-pointer relative group {isActive ? 'bg-gradient-to-r from-indigo-600/20 to-violet-600/10 text-indigo-300 border border-indigo-500/30 shadow-lg shadow-indigo-950/40' : 'text-zinc-400 hover:text-zinc-100 hover:bg-zinc-900/60 border border-transparent'} {collapsed ? 'justify-center px-0' : ''}"
 				title={collapsed ? item.label : undefined}
 			>
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.8"
-					stroke="currentColor"
-					class="w-5 h-5 shrink-0 transition-transform group-hover:scale-110 {isActive ? 'text-indigo-400' : 'text-zinc-400'}"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
-				</svg>
+				{#if item.id === 'containers'}
+					<!-- Official Docker Whale Logo -->
+					<svg
+						viewBox="0 0 24 24"
+						fill="currentColor"
+						class="w-5 h-5 shrink-0 transition-transform group-hover:scale-110 {isActive ? 'text-[#0db7ed]' : 'text-zinc-400 group-hover:text-[#0db7ed]'}"
+					>
+						<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+					</svg>
+				{:else}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke-width="1.8"
+						stroke="currentColor"
+						class="w-5 h-5 shrink-0 transition-transform group-hover:scale-110 {isActive ? 'text-indigo-400' : 'text-zinc-400'}"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+					</svg>
+				{/if}
 
 				{#if !collapsed}
 					<span class="truncate flex-1 text-left">{item.label}</span>
@@ -219,16 +230,27 @@
 			class="flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer relative {isActive ? 'text-indigo-400 font-bold' : 'text-zinc-500 hover:text-zinc-300'}"
 		>
 			<div class="relative">
-				<svg
-					xmlns="http://www.w3.org/2000/svg"
-					fill="none"
-					viewBox="0 0 24 24"
-					stroke-width="1.8"
-					stroke="currentColor"
-					class="w-5 h-5 transition-transform {isActive ? 'scale-110 text-indigo-400' : ''}"
-				>
-					<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
-				</svg>
+				{#if item.id === 'containers'}
+					<!-- Official Docker Whale Logo -->
+					<svg
+						viewBox="0 0 24 24"
+						fill="currentColor"
+						class="w-5 h-5 transition-transform {isActive ? 'scale-110 text-[#0db7ed]' : 'text-zinc-500'}"
+					>
+						<path d="M13.983 11.078h2.119a.186.186 0 00.186-.185V9.006a.186.186 0 00-.186-.186h-2.119a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.954-5.43h2.118a.186.186 0 00.186-.186V3.574a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.888c0 .102.082.185.185.185m0 2.716h2.118a.187.187 0 00.186-.186V6.29a.186.186 0 00-.186-.185h-2.118a.185.185 0 00-.185.185v1.887c0 .102.082.186.185.186m-2.93 0h2.12a.186.186 0 00.184-.186V6.29a.185.185 0 00-.185-.185H8.1a.185.185 0 00-.185.185v1.887c0 .102.083.186.185.186m-2.964 0h2.119a.186.186 0 00.185-.186V6.29a.185.185 0 00-.185-.185H5.136a.186.186 0 00-.186.185v1.887c0 .102.084.186.186.186m5.893 2.715h2.119a.186.186 0 00.186-.186V9.007a.186.186 0 00-.186-.186h-2.119a.186.186 0 00-.185.185v1.888c0 .102.082.185.185.185m-2.93 0h2.12a.185.185 0 00.184-.186V9.007a.185.185 0 00-.184-.186H8.1a.185.185 0 00-.185.185v1.888c0 .102.083.185.185.185m-2.964 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H5.136a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m-2.928 0h2.119a.185.185 0 00.185-.186V9.007a.185.185 0 00-.185-.186H2.208a.186.186 0 00-.186.185v1.888c0 .102.084.185.186.185m21.71 1.834c-.313-.234-.963-.48-1.803-.443-.139-.834-.693-1.503-1.393-1.782l-.468-.186-.29.417c-.506.726-.84 1.543-.996 2.378-.42.062-.84.135-1.258.219H1.47a.465.465 0 00-.46.52c.21 1.254.72 2.392 1.488 3.328 1.482 1.806 3.642 2.766 6.307 2.766 5.088 0 9.208-2.616 11.233-7.575.823-.07 2.05-.333 2.656-1.508l.192-.37-.478-.164z"/>
+					</svg>
+				{:else}
+					<svg
+						xmlns="http://www.w3.org/2000/svg"
+						fill="none"
+						viewBox="0 0 24 24"
+						stroke-width="1.8"
+						stroke="currentColor"
+						class="w-5 h-5 transition-transform {isActive ? 'scale-110 text-indigo-400' : ''}"
+					>
+						<path stroke-linecap="round" stroke-linejoin="round" d={item.icon} />
+					</svg>
+				{/if}
 				{#if item.badge !== undefined && item.badge > 0}
 					<span class="absolute -top-1 -right-2 bg-indigo-600 text-white text-[9px] font-bold px-1 rounded-full">
 						{item.badge}
