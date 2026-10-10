@@ -15,7 +15,8 @@
 	);
 </script>
 
-<!-- FLOATING ACTION BUTTON (Always accessible, desktop bottom-right, mobile above bottom bar) -->
+<!-- FLOATING ACTION BUTTON (Ẩn khi không có tác vụ nào đang tải lên hoặc tải xuống) -->
+{#if transferQueue.activeCount > 0 || transferQueue.isOpen}
 <div class="fixed bottom-20 md:bottom-6 right-4 md:right-6 z-50 flex flex-col items-end select-none">
 	
 	<!-- POPOVER QUEUE LIST -->
@@ -258,6 +259,7 @@
 		{/if}
 	</button>
 </div>
+{/if}
 
 <style>
 	@keyframes slideUp {

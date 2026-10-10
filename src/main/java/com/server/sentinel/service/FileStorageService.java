@@ -147,8 +147,12 @@ public class FileStorageService {
      * Tải lên một hoặc nhiều tệp tin
      */
     public FileItemDto storeFile(String targetSubDir, MultipartFile file) throws IOException {
-        if (file.isEmpty()) {
-            throw new IllegalArgumentException("Tep tin rong.");
+        String rawFilename = file.getOriginalFilename();
+        if (rawFilename == null || rawFilename.trim().isEmpty()) {
+            rawFilename = file.getName();
+        }
+        if (rawFilename == null || rawFilename.trim().isEmpty()) {
+            rawFilename = "upload_" + System.currentTimeMillis();
         }
 
         Path targetDir = resolveAndVerify(targetSubDir);
@@ -156,7 +160,7 @@ public class FileStorageService {
             Files.createDirectories(targetDir);
         }
 
-        String originalFilename = Paths.get(file.getOriginalFilename()).getFileName().toString();
+        String originalFilename = Paths.get(rawFilename).getFileName().toString();
         // Tránh ghi đè nếu trùng tên bằng cách thêm suffix thời gian
         Path destination = targetDir.resolve(originalFilename);
         if (Files.exists(destination)) {

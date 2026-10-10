@@ -70,6 +70,8 @@ public class FileStorageController {
      * Upload 1 hoặc nhiều files vào thư mục
      * POST /api/storage/upload
      */
+    private static final org.slf4j.Logger log = org.slf4j.LoggerFactory.getLogger(FileStorageController.class);
+
     /**
      * Upload 1 hoặc nhiều files vào thư mục
      * POST /api/storage/upload
@@ -81,28 +83,47 @@ public class FileStorageController {
             @RequestParam(value = "files", required = false) MultipartFile[] filesAlt,
             org.springframework.web.multipart.MultipartHttpServletRequest request) {
         try {
+            log.info("Nhan yeu cau uploadFiles - path: '{}'", path);
             List<FileItemDto> uploaded = new java.util.ArrayList<>();
             List<MultipartFile> allFiles = new java.util.ArrayList<>();
 
             if (files != null && files.length > 0) {
+                log.info("Param 'file' so luong: {}", files.length);
                 for (MultipartFile f : files) {
-                    if (f != null && !f.isEmpty()) allFiles.add(f);
+                    if (f != null) {
+                        log.info("File part name: {}, originalFilename: {}, size: {}", f.getName(), f.getOriginalFilename(), f.getSize());
+                        allFiles.add(f);
+                    }
                 }
             }
             if (filesAlt != null && filesAlt.length > 0) {
+                log.info("Param 'files' so luong: {}", filesAlt.length);
                 for (MultipartFile f : filesAlt) {
-                    if (f != null && !f.isEmpty()) allFiles.add(f);
+                    if (f != null) {
+                        log.info("FilesAlt part name: {}, originalFilename: {}, size: {}", f.getName(), f.getOriginalFilename(), f.getSize());
+                        // Tranh add trung neu gui ca file va files
+                        boolean alreadyAdded = allFiles.stream().anyMatch(existing -> 
+                            existing.getOriginalFilename() != null && existing.getOriginalFilename().equals(f.getOriginalFilename()) && existing.getSize() == f.getSize());
+                        if (!alreadyAdded) {
+                            allFiles.add(f);
+                        }
+                    }
                 }
             }
             if (allFiles.isEmpty() && request != null) {
+                log.info("Kiem tra request.getMultiFileMap() - keys: {}", request.getMultiFileMap().keySet());
                 for (List<MultipartFile> partList : request.getMultiFileMap().values()) {
                     for (MultipartFile f : partList) {
-                        if (f != null && !f.isEmpty()) allFiles.add(f);
+                        if (f != null) {
+                            log.info("MultiFileMap file: {}, size: {}", f.getOriginalFilename(), f.getSize());
+                            allFiles.add(f);
+                        }
                     }
                 }
             }
 
             if (allFiles.isEmpty()) {
+                log.warn("Khong tim thay bat ky tep tin nao trong multipart request!");
                 return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Không tìm thấy tệp tin hợp lệ được tải lên."));
             }
 
@@ -117,8 +138,10 @@ public class FileStorageController {
                     "items", uploaded
             ));
         } catch (SecurityException e) {
+            log.error("SecurityException uploadFiles: {}", e.getMessage());
             return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));
         } catch (Exception e) {
+            log.error("Exception uploadFiles: {}", e.getMessage(), e);
             return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
         }
     }
