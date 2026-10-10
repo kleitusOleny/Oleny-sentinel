@@ -23,6 +23,7 @@ const MAX_CONCURRENT = 2; // Tối đa 2 file truyền cùng lúc
 class TransferQueueStore {
 	tasks = $state<TransferTask[]>([]);
 	isOpen = $state(false); // Trạng thái mở popover của Floating Button
+	completedUploadCount = $state(0); // Tăng mỗi khi 1 upload task hoàn tất để UI tự reload
 
 	// Đếm số task đang chạy hoặc chờ
 	activeCount = $derived(
@@ -282,6 +283,12 @@ class TransferQueueStore {
 			task.progress = 100;
 			task.loaded = file.size;
 			task.speedText = 'Hoàn tất';
+
+			// Báo cho UI rerender danh sách file
+			this.completedUploadCount++;
+			if (typeof window !== 'undefined') {
+				window.dispatchEvent(new CustomEvent('sentinel:file-uploaded', { detail: { path: task.targetPath, name: file.name } }));
+			}
 		} catch (err: any) {
 			task.status = 'error';
 			task.errorMessage = err.message;

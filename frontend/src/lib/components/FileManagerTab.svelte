@@ -230,8 +230,28 @@
 		return textExts.includes(lower) || mediaExts.includes(lower);
 	}
 
+	// Tự động làm mới danh sách thư mục trên PC khi upload hoàn tất
+	$effect(() => {
+		if (transferQueue.completedUploadCount > 0) {
+			loadDirectory(currentPath);
+		}
+	});
+
 	onMount(() => {
 		loadDirectory(currentPath);
+
+		const handleUploadedEvent = (e: any) => {
+			const targetPath = e.detail?.path ?? '';
+			// Nếu file vừa upload vào đúng thư mục hiện tại hoặc thư mục con
+			if (targetPath === currentPath) {
+				loadDirectory(currentPath);
+			}
+		};
+
+		window.addEventListener('sentinel:file-uploaded', handleUploadedEvent);
+		return () => {
+			window.removeEventListener('sentinel:file-uploaded', handleUploadedEvent);
+		};
 	});
 </script>
 <div class="space-y-5 animate-fadeIn">
