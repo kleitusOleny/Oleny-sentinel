@@ -1,4 +1,4 @@
-﻿<script lang="ts">
+<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
 	import SystemMetricsModule from './module/SystemMetricsModule.svelte';
 	import ContainerGlanceModule from './module/ContainerGlanceModule.svelte';
@@ -27,6 +27,9 @@
 	interface WidgetModule {
 		id: string;
 		title: string;
+		description?: string;
+		category?: string;
+		icon?: string;
 		visible: boolean;
 		order: number;
 	}
@@ -279,20 +282,51 @@
 
 	// --- 5. DRAGGABLE MODULAR WIDGETS ---
 	const DEFAULT_MODULES: WidgetModule[] = [
-		{ id: 'system_metrics', title: 'System Specs', visible: true, order: 0 },
-		{ id: 'container_glance', title: 'Docker Containers', visible: true, order: 1 },
-		{ id: 'quick_scratchpad', title: 'Scratchpad', visible: true, order: 2 }
+		{
+			id: 'system_metrics',
+			title: 'System Specs',
+			description: 'Real-time CPU, RAM, Disk usage, Platform info and Server Uptime metrics.',
+			category: 'Monitoring',
+			icon: '📊',
+			visible: true,
+			order: 0
+		},
+		{
+			id: 'container_glance',
+			title: 'Docker Containers',
+			description: 'Live overview of active Docker containers, health status, and quick inspect links.',
+			category: 'Docker',
+			icon: '🐳',
+			visible: true,
+			order: 1
+		},
+		{
+			id: 'quick_scratchpad',
+			title: 'Scratchpad',
+			description: 'Instant local memo pad for server notes, IPs, commands or temporary ideas.',
+			category: 'Utilities',
+			icon: '📝',
+			visible: true,
+			order: 2
+		}
 	];
 
 	let modules = $state<WidgetModule[]>([]);
 	let draggedModuleId = $state<string | null>(null);
-	let showAddModuleMenu = $state(false);
+	let showModuleModal = $state(false);
 
 	function loadModules() {
 		try {
 			const saved = localStorage.getItem('sentinel_home_modules');
 			if (saved) {
-				modules = JSON.parse(saved);
+				const parsed: WidgetModule[] = JSON.parse(saved);
+				// Merge with DEFAULT_MODULES to guarantee updated titles, icons, descriptions
+				modules = DEFAULT_MODULES.map((def, idx) => {
+					const existing = parsed.find((p) => p.id === def.id);
+					return existing
+						? { ...def, visible: existing.visible, order: existing.order ?? idx }
+						: def;
+				}).sort((a, b) => a.order - b.order);
 			} else {
 				modules = DEFAULT_MODULES;
 			}
@@ -591,33 +625,17 @@
 				Module
 			</h2>
 
-			<!-- Add Module Dropdown Button -->
-			<div class="relative">
-				<button
-					onclick={() => (showAddModuleMenu = !showAddModuleMenu)}
-					class="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
-					title="Add / Configure Modules"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-cyan-400">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-					</svg>
-					<span>Add Module</span>
-				</button>
-
-				{#if showAddModuleMenu}
-					<div class="absolute right-0 top-full mt-2 w-52 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-2 z-30 space-y-1 animate-fadeIn">
-						{#each modules as m}
-							<button
-								onclick={() => toggleModuleVisibility(m.id)}
-								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer {m.visible ? 'bg-indigo-600/20 text-indigo-300 font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}"
-							>
-								<span>{m.title}</span>
-								<span>{m.visible ? '✓' : '+'}</span>
-							</button>
-						{/each}
-					</div>
-				{/if}
-			</div>
+			<!-- Add Module Popup Modal Button -->
+			<button
+				onclick={() => (showModuleModal = true)}
+				class="px-3 py-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-200 hover:text-white border border-zinc-700/60 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm hover:shadow-cyan-950/40"
+				title="Add / Configure Modules"
+			>
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-cyan-400">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+				</svg>
+				<span>Add Module</span>
+			</button>
 		</div>
 
 		<!-- Drag-and-Drop Container Grid -->
@@ -714,6 +732,100 @@
 					class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-950"
 				>
 					{editingShortcut ? 'Save' : 'Add'}
+				</button>
+			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MODULE SELECTION & MANAGEMENT MODAL -->
+{#if showModuleModal}
+	<div class="fixed inset-0 z-50 bg-black/75 backdrop-blur-md flex items-center justify-center p-4">
+		<div class="bg-zinc-900 border border-zinc-800 rounded-3xl w-full max-w-xl p-6 shadow-2xl relative space-y-5 animate-fadeIn">
+			<!-- Modal Header -->
+			<div class="flex items-center justify-between pb-4 border-b border-zinc-800/80">
+				<div class="flex items-center gap-3">
+					<div class="w-10 h-10 rounded-2xl bg-cyan-500/10 border border-cyan-500/30 flex items-center justify-center text-cyan-400">
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-1.25-2.25V18v-2.25Z" />
+						</svg>
+					</div>
+					<div>
+						<h3 class="text-base font-extrabold text-zinc-100">Module Hub</h3>
+						<p class="text-xs text-zinc-400 mt-0.5">Select modules to display on your dashboard</p>
+					</div>
+				</div>
+
+				<button
+					onclick={() => (showModuleModal = false)}
+					class="p-2 text-zinc-400 hover:text-white rounded-xl hover:bg-zinc-800 transition-colors cursor-pointer"
+					title="Close"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+					</svg>
+				</button>
+			</div>
+
+			<!-- Modules List -->
+			<div class="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+				{#each modules as m (m.id)}
+					<div class="p-4 rounded-2xl border transition-all duration-200 flex items-center justify-between gap-4 {m.visible ? 'bg-indigo-600/10 border-indigo-500/40' : 'bg-zinc-950/60 border-zinc-800/80 hover:border-zinc-700'}">
+						<div class="flex items-start gap-3.5">
+							<span class="text-2xl select-none shrink-0 p-2 rounded-xl bg-zinc-800/80 border border-zinc-700/50">
+								{m.icon || '📦'}
+							</span>
+							<div>
+								<div class="flex items-center gap-2">
+									<h4 class="text-sm font-bold text-zinc-100">{m.title}</h4>
+									{#if m.category}
+										<span class="px-2 py-0.5 text-[10px] font-semibold rounded-full bg-zinc-800 text-zinc-400 border border-zinc-700/50">
+											{m.category}
+										</span>
+									{/if}
+									{#if m.visible}
+										<span class="px-2 py-0.5 text-[10px] font-bold rounded-full bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+											Active
+										</span>
+									{/if}
+								</div>
+								<p class="text-xs text-zinc-400 mt-1 leading-relaxed">
+									{m.description || 'Custom widget module for your home dashboard.'}
+								</p>
+							</div>
+						</div>
+
+						<!-- Toggle Action Button -->
+						<button
+							onclick={() => toggleModuleVisibility(m.id)}
+							class="shrink-0 px-3.5 py-2 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 {m.visible ? 'bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30' : 'bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950'}"
+						>
+							{#if m.visible}
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+								<span>Remove</span>
+							{:else}
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+								</svg>
+								<span>Enable</span>
+							{/if}
+						</button>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Modal Footer -->
+			<div class="flex items-center justify-between pt-3 border-t border-zinc-800/80 text-xs">
+				<span class="text-zinc-500">
+					{modules.filter((m) => m.visible).length} of {modules.length} modules enabled
+				</span>
+				<button
+					onclick={() => (showModuleModal = false)}
+					class="px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-100 text-xs font-bold cursor-pointer transition-colors"
+				>
+					Done
 				</button>
 			</div>
 		</div>
