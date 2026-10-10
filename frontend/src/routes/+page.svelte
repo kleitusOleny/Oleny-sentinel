@@ -312,11 +312,7 @@
 	});
 
 	let tabSubtitle = $derived.by(() => {
-		if (activeTab === 'home') return 'Tìm kiếm Bing, Google, phím tắt dịch vụ nhanh và module tiện ích tùy biến';
-		if (activeTab === 'containers') return 'Theo dõi trạng thái, nhật ký logs và quản lý Auto-Heal tự động hồi phục';
-		if (activeTab === 'files') return 'Duyệt cây thư mục máy chủ, tải lên, xem trước nội dung text/logs và quản lý an toàn';
-		if (activeTab === 'settings') return 'Thiết lập ngưỡng cảnh báo quá tải CPU/RAM và thông báo tới Discord Webhook/Bot';
-		return 'Theo dõi thời gian thực CPU, RAM, Disk, Mạng và tiến trình toàn server';
+		return '';
 	});
 </script>
 
@@ -391,13 +387,12 @@
 							<!-- Quick Container Health Card -->
 							<div class="bg-zinc-900/30 border border-zinc-800/80 rounded-2xl p-6 shadow-xl flex flex-col justify-between">
 								<div>
-									<h3 class="font-bold text-zinc-200 text-lg flex items-center gap-2 mb-2">
+									<h3 class="font-bold text-zinc-200 text-lg flex items-center gap-2 mb-4">
 										<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-indigo-400">
 											<path stroke-linecap="round" stroke-linejoin="round" d="M9 12.75 11.25 15 15 9.75m-3-7.036A11.959 11.959 0 0 1 3.598 6 11.99 11.99 0 0 0 3 9.749c0 5.592 3.824 10.29 9 11.623 5.176-1.332 9-6.03 9-11.622 0-1.31-.21-2.571-.598-3.751h-.152c-3.196 0-6.1-1.248-8.25-3.285Z" />
 										</svg>
 										Sức khỏe Container
 									</h3>
-									<p class="text-zinc-500 text-xs mb-4">Tóm tắt tình trạng hoạt động và chế độ tự cứu</p>
 
 									<div class="space-y-3.5">
 										<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/60">

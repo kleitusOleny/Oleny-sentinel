@@ -1,5 +1,8 @@
-<script lang="ts">
+﻿<script lang="ts">
 	import { onMount, onDestroy } from 'svelte';
+	import SystemMetricsModule from './module/SystemMetricsModule.svelte';
+	import ContainerGlanceModule from './module/ContainerGlanceModule.svelte';
+	import ScratchpadModule from './module/ScratchpadModule.svelte';
 
 	interface ContainerItem {
 		Id?: string;
@@ -18,7 +21,6 @@
 		id: string;
 		title: string;
 		url: string;
-		icon?: string;
 		color?: string;
 	}
 
@@ -70,7 +72,6 @@
 	async function fetchWeather() {
 		weatherLoading = true;
 		try {
-			// Sử dụng toạ độ mặc định (TP.HCM: 10.8231, 106.6297)
 			let lat = 10.8231;
 			let lon = 106.6297;
 
@@ -82,9 +83,7 @@
 					lat = pos.coords.latitude;
 					lon = pos.coords.longitude;
 					weatherCity = 'Vị trí hiện tại';
-				} catch {
-					// Fallback mặc định
-				}
+				} catch {}
 			}
 
 			const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current_weather=true`);
@@ -95,9 +94,7 @@
 					weatherCode = data.current_weather.weathercode;
 				}
 			}
-		} catch {
-			// Bỏ qua lỗi mạng thời tiết
-		} finally {
+		} catch {} finally {
 			weatherLoading = false;
 		}
 	}
@@ -173,7 +170,6 @@
 		}
 	}
 
-	// Lọc container trực tiếp khi chọn chế độ tìm Containers
 	let matchedContainers = $derived.by(() => {
 		if (searchEngine !== 'containers' || !searchQuery.trim()) return [];
 		const q = searchQuery.toLowerCase();
@@ -184,7 +180,7 @@
 		});
 	});
 
-	// --- 4. SHORTCUTS / SERVICES MANAGEMENT ---
+	// --- 4. SHORTCUTS MANAGEMENT ---
 	const DEFAULT_SHORTCUTS: ShortcutItem[] = [
 		{ id: '1', title: 'Portainer', url: 'http://100.94.177.113:9000', color: 'from-blue-600 to-cyan-500' },
 		{ id: '2', title: 'GitHub', url: 'https://github.com', color: 'from-zinc-800 to-zinc-700' },
@@ -196,15 +192,14 @@
 
 	let shortcuts = $state<ShortcutItem[]>([]);
 	let showAddShortcutModal = $state(false);
+	let editingShortcut = $state<ShortcutItem | null>(null);
 	let newShortcutTitle = $state('');
 	let newShortcutUrl = $state('');
 	let failedFaviconSet = $state<Set<string>>(new Set());
 
-	// Hàm lấy URL favicon (.ico) từ Google Favicon Service hoặc trực tiếp từ domain
 	function getFaviconUrl(rawUrl: string): string {
 		try {
 			const parsed = new URL(rawUrl);
-			// Dùng dịch vụ favicon chuẩn của Google để lấy icon .ico/png 64px mượt mà
 			return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`;
 		} catch {
 			return '';
@@ -234,29 +229,49 @@
 		} catch {}
 	}
 
-	function addShortcut() {
+	function saveOrUpdateShortcut() {
 		if (!newShortcutTitle.trim() || !newShortcutUrl.trim()) return;
 		let formattedUrl = newShortcutUrl.trim();
 		if (!/^https?:\/\//i.test(formattedUrl)) {
 			formattedUrl = 'https://' + formattedUrl;
 		}
 
-		shortcuts = [
-			...shortcuts,
-			{
-				id: Date.now().toString(),
-				title: newShortcutTitle.trim(),
-				url: formattedUrl,
-				color: 'from-indigo-600 to-violet-600'
-			}
-		];
+		if (editingShortcut) {
+			shortcuts = shortcuts.map((s) =>
+				s.id === editingShortcut!.id
+					? { ...s, title: newShortcutTitle.trim(), url: formattedUrl }
+					: s
+			);
+			editingShortcut = null;
+		} else {
+			shortcuts = [
+				...shortcuts,
+				{
+					id: Date.now().toString(),
+					title: newShortcutTitle.trim(),
+					url: formattedUrl,
+					color: 'from-indigo-600 to-violet-600'
+				}
+			];
+		}
+
 		saveShortcuts();
 		showAddShortcutModal = false;
 		newShortcutTitle = '';
 		newShortcutUrl = '';
 	}
 
+	function openEditShortcut(s: ShortcutItem, e: MouseEvent) {
+		e.preventDefault();
+		e.stopPropagation();
+		editingShortcut = s;
+		newShortcutTitle = s.title;
+		newShortcutUrl = s.url;
+		showAddShortcutModal = true;
+	}
+
 	function removeShortcut(id: string, e: MouseEvent) {
+		e.preventDefault();
 		e.stopPropagation();
 		shortcuts = shortcuts.filter((s) => s.id !== id);
 		saveShortcuts();
@@ -264,14 +279,14 @@
 
 	// --- 5. DRAGGABLE MODULAR WIDGETS ---
 	const DEFAULT_MODULES: WidgetModule[] = [
-		{ id: 'system_metrics', title: 'Chỉ số Máy chủ (System Specs)', visible: true, order: 0 },
-		{ id: 'container_glance', title: 'Tình trạng Containers', visible: true, order: 1 },
-		{ id: 'quick_scratchpad', title: 'Ghi chú Nhanh (Scratchpad)', visible: true, order: 2 }
+		{ id: 'system_metrics', title: 'System Specs', visible: true, order: 0 },
+		{ id: 'container_glance', title: 'Docker Containers', visible: true, order: 1 },
+		{ id: 'quick_scratchpad', title: 'Scratchpad', visible: true, order: 2 }
 	];
 
 	let modules = $state<WidgetModule[]>([]);
 	let draggedModuleId = $state<string | null>(null);
-	let scratchpadText = $state('');
+	let showAddModuleMenu = $state(false);
 
 	function loadModules() {
 		try {
@@ -281,8 +296,6 @@
 			} else {
 				modules = DEFAULT_MODULES;
 			}
-			const savedNotes = localStorage.getItem('sentinel_home_scratchpad');
-			if (savedNotes) scratchpadText = savedNotes;
 		} catch {
 			modules = DEFAULT_MODULES;
 		}
@@ -294,13 +307,6 @@
 		} catch {}
 	}
 
-	function saveScratchpad() {
-		try {
-			localStorage.setItem('sentinel_home_scratchpad', scratchpadText);
-		} catch {}
-	}
-
-	// Drag & Drop Handlers
 	function onDragStart(e: DragEvent, id: string) {
 		draggedModuleId = id;
 		if (e.dataTransfer) {
@@ -327,7 +333,6 @@
 			const updated = [...modules];
 			const [moved] = updated.splice(currentIdx, 1);
 			updated.splice(targetIdx, 0, moved);
-			// Cập nhật lại số thứ tự
 			modules = updated.map((m, idx) => ({ ...m, order: idx }));
 			saveModules();
 		}
@@ -354,13 +359,12 @@
 </script>
 
 <div class="space-y-8 max-w-6xl mx-auto py-2 px-1 animate-fadeIn">
-	<!-- 1. HEADER HERO: CLOCK & WEATHER WIDGET -->
+	<!-- 1. CLOCK & WEATHER WIDGET -->
 	<div class="flex flex-col md:flex-row items-center justify-between gap-6 bg-gradient-to-br from-zinc-900/60 via-zinc-950/40 to-indigo-950/20 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-6 md:p-8 shadow-2xl relative overflow-hidden">
-		<!-- Decorative Background Glow -->
 		<div class="absolute -top-24 -left-24 w-72 h-72 bg-indigo-600/10 rounded-full blur-3xl pointer-events-none"></div>
 		<div class="absolute -bottom-24 -right-24 w-72 h-72 bg-cyan-600/10 rounded-full blur-3xl pointer-events-none"></div>
 
-		<!-- Time & Greeting -->
+		<!-- Time & Date -->
 		<div class="text-center md:text-left z-10 space-y-1">
 			<div class="font-mono font-black text-4xl sm:text-5xl md:text-6xl tracking-tight bg-gradient-to-r from-zinc-100 via-indigo-200 to-cyan-300 bg-clip-text text-transparent drop-shadow-sm">
 				{currentTime || '00:00:00'}
@@ -369,7 +373,7 @@
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5" />
 				</svg>
-				{currentDate || 'Đang tải ngày...'}
+				{currentDate || 'Loading...'}
 			</div>
 		</div>
 
@@ -378,7 +382,7 @@
 			{#if weatherLoading}
 				<div class="flex items-center gap-2 text-zinc-400 text-xs font-mono animate-pulse">
 					<span class="w-3 h-3 rounded-full border-2 border-indigo-400 border-t-transparent animate-spin"></span>
-					Đang cập nhật thời tiết...
+					Loading weather...
 				</div>
 			{:else}
 				<div class="text-3xl select-none">
@@ -410,7 +414,7 @@
 						<option value="bing">🌐 Bing</option>
 						<option value="google">🔍 Google</option>
 						<option value="containers">🐳 Containers</option>
-						<option value="files">📁 Tệp tin</option>
+						<option value="files">📁 Files</option>
 					</select>
 					<div class="absolute right-2.5 top-1/2 -translate-y-1/2 pointer-events-none text-zinc-400">
 						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
@@ -429,22 +433,22 @@
 						onfocus={() => (isInputFocused = true)}
 						placeholder={
 							searchEngine === 'bing'
-								? 'Tìm kiếm trên Bing hoặc nhập địa chỉ web...'
+								? 'Search on Bing or enter URL...'
 								: searchEngine === 'google'
-									? 'Tìm kiếm trên Google...'
+									? 'Search on Google...'
 									: searchEngine === 'containers'
-										? 'Lọc nhanh Docker Container trong server...'
-										: 'Tìm kiếm tệp tin lưu trữ...'
+										? 'Filter Docker Containers...'
+										: 'Search storage files...'
 						}
 						class="w-full bg-transparent text-sm sm:text-base text-zinc-100 placeholder-zinc-500 px-3 py-2 focus:outline-none"
 					/>
 				</div>
 
-				<!-- Action Submit Button -->
+				<!-- Action Submit Button (Same background as search bar) -->
 				<button
 					onclick={() => executeSearch()}
 					class="shrink-0 p-3 bg-transparent hover:bg-zinc-800 text-zinc-400 hover:text-white rounded-2xl cursor-pointer transition-colors"
-					title="Tìm kiếm"
+					title="Search"
 				>
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5">
 						<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
@@ -476,12 +480,12 @@
 			{/if}
 		</div>
 
-		<!-- Live Inline Matched Containers (khi chọn engine là containers) -->
+		<!-- Live Inline Matched Containers -->
 		{#if searchEngine === 'containers' && searchQuery.trim()}
 			<div class="bg-zinc-900/60 border border-zinc-800 rounded-2xl p-4 space-y-2">
-				<div class="text-xs font-bold text-zinc-400">Kết quả tìm kiếm Container ({matchedContainers.length}):</div>
+				<div class="text-xs font-bold text-zinc-400">Containers ({matchedContainers.length}):</div>
 				{#if matchedContainers.length === 0}
-					<div class="text-xs text-zinc-500 italic">Không tìm thấy container nào khớp với từ khoá.</div>
+					<div class="text-xs text-zinc-500 italic">No matching containers found.</div>
 				{:else}
 					<div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
 						{#each matchedContainers as c}
@@ -503,21 +507,26 @@
 		{/if}
 	</div>
 
-	<!-- 3. PERSONAL SHORTCUTS GRID -->
+	<!-- 3. SHORTCUTS GRID -->
 	<div class="space-y-3">
 		<div class="flex items-center justify-between">
 			<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
 					<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
 				</svg>
-				Lối tắt & Dịch vụ Nhanh
+				Shortcut
 			</h2>
 
 			<button
-				onclick={() => (showAddShortcutModal = true)}
+				onclick={() => {
+					editingShortcut = null;
+					newShortcutTitle = '';
+					newShortcutUrl = '';
+					showAddShortcutModal = true;
+				}}
 				class="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer hover:underline"
 			>
-				+ Thêm lối tắt
+				+ Add Shortcut
 			</button>
 		</div>
 
@@ -529,11 +538,22 @@
 					rel="noreferrer"
 					class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-indigo-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
 				>
-					<!-- Delete button on hover -->
+					<!-- 3-Dots Edit Button on top-left -->
+					<button
+						onclick={(e) => openEditShortcut(s, e)}
+						class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-700/80 transition-all cursor-pointer"
+						title="Edit Shortcut"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+						</svg>
+					</button>
+
+					<!-- Delete button on top-right -->
 					<button
 						onclick={(e) => removeShortcut(s.id, e)}
 						class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10 transition-all cursor-pointer"
-						title="Xóa lối tắt này"
+						title="Delete Shortcut"
 					>
 						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
 							<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -564,27 +584,39 @@
 	<!-- 4. MODULAR DRAGGABLE WIDGETS -->
 	<div class="space-y-4">
 		<div class="flex items-center justify-between border-t border-zinc-800/80 pt-6">
-			<div>
-				<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-cyan-400">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-1.25-2.25V18v-2.25Z" />
-					</svg>
-					Module Tiện Ích Tùy Biến (Kéo Thả Sắp Xếp)
-				</h2>
-				<p class="text-[11px] text-zinc-500 mt-0.5">Giữ chuột vào phần tiêu đề để kéo thả đổi vị trí giữa các module</p>
-			</div>
+			<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-cyan-400">
+					<path stroke-linecap="round" stroke-linejoin="round" d="M3.75 6A2.25 2.25 0 0 1 6 3.75h2.25A2.25 2.25 0 0 1 10.5 6v2.25a2.25 2.25 0 0 1-2.25 2.25H6a2.25 2.25 0 0 1-2.25-2.25V6ZM3.75 15.75A2.25 2.25 0 0 1 6 13.5h2.25a2.25 2.25 0 0 1 2.25 2.25V18a2.25 2.25 0 0 1-2.25 2.25H6A2.25 2.25 0 0 1 3.75 18v-2.25ZM13.5 6a2.25 2.25 0 0 1 2.25-2.25H18A2.25 2.25 0 0 1 20.25 6v2.25A2.25 2.25 0 0 1 18 10.5h-2.25a2.25 2.25 0 0 1-2.25-2.25V6ZM13.5 15.75a2.25 2.25 0 0 1 2.25-2.25H18a2.25 2.25 0 0 1 2.25 2.25V18A2.25 2.25 0 0 1 18 20.25h-2.25a2.25 2.25 0 0 1-1.25-2.25V18v-2.25Z" />
+				</svg>
+				Module
+			</h2>
 
-			<!-- Module Visibility Toggles -->
-			<div class="flex items-center gap-1.5">
-				{#each modules as m}
-					<button
-						onclick={() => toggleModuleVisibility(m.id)}
-						class="px-2.5 py-1 rounded-lg text-[10px] font-bold border transition-all cursor-pointer {m.visible ? 'bg-indigo-600/20 text-indigo-300 border-indigo-500/40' : 'bg-zinc-900 text-zinc-500 border-zinc-800'}"
-						title={m.visible ? `Ẩn ${m.title}` : `Hiện ${m.title}`}
-					>
-						{m.visible ? '✓' : '+'} {m.title.split(' ')[0]}
-					</button>
-				{/each}
+			<!-- Add Module Dropdown Button -->
+			<div class="relative">
+				<button
+					onclick={() => (showAddModuleMenu = !showAddModuleMenu)}
+					class="p-2 rounded-xl bg-zinc-800/80 hover:bg-zinc-700 text-zinc-300 hover:text-white border border-zinc-700/60 text-xs font-bold flex items-center gap-1.5 transition-all cursor-pointer shadow-sm"
+					title="Add / Configure Modules"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4 text-cyan-400">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+					</svg>
+					<span>Add Module</span>
+				</button>
+
+				{#if showAddModuleMenu}
+					<div class="absolute right-0 top-full mt-2 w-52 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-2 z-30 space-y-1 animate-fadeIn">
+						{#each modules as m}
+							<button
+								onclick={() => toggleModuleVisibility(m.id)}
+								class="w-full text-left px-3 py-2 rounded-xl text-xs flex items-center justify-between transition-colors cursor-pointer {m.visible ? 'bg-indigo-600/20 text-indigo-300 font-bold' : 'text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200'}"
+							>
+								<span>{m.title}</span>
+								<span>{m.visible ? '✓' : '+'}</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
 			</div>
 		</div>
 
@@ -596,6 +628,8 @@
 					ondragstart={(e) => onDragStart(e, m.id)}
 					ondragover={onDragOver}
 					ondrop={(e) => onDrop(e, m.id)}
+					role="region"
+					aria-label={m.title}
 					class="bg-zinc-900/40 backdrop-blur-xl border border-zinc-800/80 hover:border-zinc-700 rounded-3xl p-5 shadow-xl transition-all duration-200 flex flex-col justify-between {draggedModuleId === m.id ? 'opacity-40 border-dashed border-indigo-400' : ''}"
 				>
 					<!-- Module Header (Drag Handle) -->
@@ -607,73 +641,20 @@
 						<button
 							onclick={() => toggleModuleVisibility(m.id)}
 							class="text-zinc-500 hover:text-zinc-300 text-xs cursor-pointer p-1"
-							title="Ẩn module này"
+							title="Hide Module"
 						>
 							✕
 						</button>
 					</div>
 
-					<!-- Module Body Rendering -->
+					<!-- Module Body (Tách riêng component trong thư mục module) -->
 					<div class="pt-4 flex-1">
 						{#if m.id === 'system_metrics'}
-							<!-- MODULE 1: SYSTEM METRICS GLANCE -->
-							<div class="space-y-3">
-								<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/60">
-									<span class="text-xs text-zinc-400">CPU Usage</span>
-									<span class="font-mono text-sm font-bold {systemStats?.cpuUsage > 80 ? 'text-rose-400' : 'text-emerald-400'}">
-										{systemStats?.cpuUsage !== undefined ? `${systemStats.cpuUsage.toFixed(1)}%` : '--'}
-									</span>
-								</div>
-
-								<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/60">
-									<span class="text-xs text-zinc-400">Bộ nhớ RAM</span>
-									<span class="font-mono text-sm font-bold text-cyan-400">
-										{systemStats?.usedMemoryMB !== undefined ? `${systemStats.usedMemoryMB} MB` : '--'}
-									</span>
-								</div>
-
-								<button
-									onclick={() => onnavigateTab('overview')}
-									class="w-full mt-2 py-2 rounded-xl bg-zinc-800/60 hover:bg-indigo-600/20 text-zinc-300 hover:text-indigo-300 text-xs font-bold transition-all border border-zinc-700/50 cursor-pointer"
-								>
-									Xem biểu đồ chi tiết →
-								</button>
-							</div>
+							<SystemMetricsModule {systemStats} onnavigate={onnavigateTab} />
 						{:else if m.id === 'container_glance'}
-							<!-- MODULE 2: CONTAINER HEALTH GLANCE -->
-							<div class="space-y-3">
-								<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/60">
-									<span class="text-xs text-zinc-400">Đang hoạt động</span>
-									<span class="font-mono text-sm font-bold text-emerald-400">
-										{containers.filter((c) => (c.State || c.state) === 'running').length} / {containers.length}
-									</span>
-								</div>
-
-								<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/50 border border-zinc-800/60">
-									<span class="text-xs text-zinc-400">Đã dừng / Crash</span>
-									<span class="font-mono text-sm font-bold text-rose-400">
-										{containers.filter((c) => (c.State || c.state) !== 'running').length}
-									</span>
-								</div>
-
-								<button
-									onclick={() => onnavigateTab('containers')}
-									class="w-full mt-2 py-2 rounded-xl bg-zinc-800/60 hover:bg-indigo-600/20 text-zinc-300 hover:text-indigo-300 text-xs font-bold transition-all border border-zinc-700/50 cursor-pointer"
-								>
-									Quản lý Containers →
-								</button>
-							</div>
+							<ContainerGlanceModule {containers} onnavigate={onnavigateTab} />
 						{:else if m.id === 'quick_scratchpad'}
-							<!-- MODULE 3: QUICK SCRATCHPAD NOTES -->
-							<div class="space-y-2">
-								<textarea
-									bind:value={scratchpadText}
-									oninput={saveScratchpad}
-									placeholder="Ghi chú nhanh việc cần làm, lệnh terminal, IP..."
-									class="w-full h-32 bg-zinc-950/60 border border-zinc-800 rounded-xl p-2.5 text-xs font-mono text-zinc-200 placeholder-zinc-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
-								></textarea>
-								<div class="text-[10px] text-zinc-500 text-right">Tự động lưu vào trình duyệt</div>
-							</div>
+							<ScratchpadModule />
 						{/if}
 					</div>
 				</div>
@@ -682,50 +663,57 @@
 	</div>
 </div>
 
-<!-- MODAL: THÊM LỐI TẮT MỚI -->
+<!-- MODAL: ADD / EDIT SHORTCUT -->
 {#if showAddShortcutModal}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
 		<div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
-			<h3 class="text-base font-extrabold text-white">Thêm lối tắt dịch vụ mới</h3>
+			<h3 class="text-base font-extrabold text-white">
+				{editingShortcut ? 'Edit Shortcut' : 'Add Shortcut'}
+			</h3>
 
 			<div class="space-y-3 text-xs">
 				<div>
-					<label class="block text-zinc-400 mb-1 font-semibold">Tên dịch vụ</label>
+					<label for="shortcut-name-input" class="block text-zinc-400 mb-1 font-semibold">Name</label>
 					<input
+						id="shortcut-name-input"
 						type="text"
 						bind:value={newShortcutTitle}
-						placeholder="Ví dụ: Portainer, Grafana..."
+						placeholder="Example: Portainer, GitHub..."
 						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
 					/>
 				</div>
 
 				<div>
-					<label class="block text-zinc-400 mb-1 font-semibold">Địa chỉ URL</label>
+					<label for="shortcut-url-input" class="block text-zinc-400 mb-1 font-semibold">URL</label>
 					<input
+						id="shortcut-url-input"
 						type="text"
 						bind:value={newShortcutUrl}
-						placeholder="http://100.94.177.113:9000 hoặc https://..."
+						placeholder="http://100.94.177.113:9000 or https://..."
 						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
 					/>
 				</div>
 
 				<div class="text-[11px] text-zinc-500 italic">
-					* Biểu tượng .ico sẽ được tự động trích xuất từ trang web. Nếu trang web không có, biểu tượng 🌐 sẽ được dùng làm mặc định.
+					* Favicon (.ico) is automatically fetched from the URL. Falls back to 🌐 if not found.
 				</div>
 			</div>
 
 			<div class="flex items-center justify-end gap-2 pt-2">
 				<button
-					onclick={() => (showAddShortcutModal = false)}
+					onclick={() => {
+						showAddShortcutModal = false;
+						editingShortcut = null;
+					}}
 					class="px-3.5 py-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-xs font-semibold cursor-pointer"
 				>
-					Hủy
+					Cancel
 				</button>
 				<button
-					onclick={addShortcut}
+					onclick={saveOrUpdateShortcut}
 					class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-950"
 				>
-					Thêm
+					{editingShortcut ? 'Save' : 'Add'}
 				</button>
 			</div>
 		</div>

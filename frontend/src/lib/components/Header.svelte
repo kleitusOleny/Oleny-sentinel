@@ -14,7 +14,9 @@
 		<h1 class="text-xl sm:text-2xl font-extrabold tracking-tight text-white flex items-center gap-2.5">
 			{title}
 		</h1>
-		<p class="text-zinc-400 text-xs sm:text-sm mt-0.5">{subtitle}</p>
+		{#if subtitle}
+			<p class="text-zinc-400 text-xs sm:text-sm mt-0.5">{subtitle}</p>
+		{/if}
 	</div>
 
 	<div class="flex items-center gap-3 w-full sm:w-auto justify-end">

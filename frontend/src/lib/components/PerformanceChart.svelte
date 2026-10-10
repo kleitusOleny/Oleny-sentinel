@@ -43,7 +43,6 @@
 			</svg>
 			Lịch sử hiệu năng (30 phút gần nhất)
 		</h3>
-		<p class="text-zinc-500 text-xs mb-4">Chu kỳ lấy mẫu 30 giây/lần. Tự động cập nhật.</p>
 	</div>
 
 	<!-- Chart Container -->
