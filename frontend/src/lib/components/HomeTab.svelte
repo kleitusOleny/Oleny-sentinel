@@ -285,6 +285,9 @@
 		return /^sentinel-run:\/\//i.test(url) || /^[a-zA-Z]:[\\\/]/i.test(url) || /^\\\\/i.test(url);
 	}
 
+	let webShortcuts = $derived(shortcuts.filter((s) => !isLocalShortcut(s.url)));
+	let appShortcuts = $derived(shortcuts.filter((s) => isLocalShortcut(s.url)));
+
 	function getDisplayUrl(url: string): string {
 		if (/^sentinel-run:\/\//i.test(url)) {
 			try {
@@ -830,87 +833,165 @@
 		{/if}
 	</div>
 
-	<!-- 3. SHORTCUTS GRID -->
-	<div class="space-y-3">
-		<div class="flex items-center justify-between">
-			<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M13.19 8.688a4.5 4.5 0 0 1 1.242 7.244l-4.5 4.5a4.5 4.5 0 0 1-6.364-6.364l1.757-1.757m13.35-.622 1.757-1.757a4.5 4.5 0 0 0-6.364-6.364l-4.5 4.5a4.5 4.5 0 0 0 1.242 7.244" />
-				</svg>
-				Shortcut
-			</h2>
+	<!-- 3. SHORTCUTS: WEB & APPS -->
+	<div class="space-y-6">
+		<!-- 3A. WEB SHORTCUTS -->
+		<div class="space-y-3">
+			<div class="flex items-center justify-between">
+				<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-indigo-400">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5c-3.162 0-6.133-.815-8.716-2.247m0 0A9.015 9.015 0 0 1 3 12c0-.778.099-1.533.284-2.253" />
+					</svg>
+					Web Shortcuts ({webShortcuts.length})
+				</h2>
 
-			<button
-				onclick={() => {
-					editingShortcut = null;
-					newShortcutTitle = '';
-					newShortcutUrl = '';
-					showAddShortcutModal = true;
-				}}
-				class="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer hover:underline"
-			>
-				+ Add Shortcut
-			</button>
+				<button
+					onclick={() => {
+						editingShortcut = null;
+						newShortcutTitle = '';
+						newShortcutUrl = '';
+						shortcutType = 'web';
+						showAddShortcutModal = true;
+					}}
+					class="text-[11px] font-bold text-indigo-400 hover:text-indigo-300 flex items-center gap-1 cursor-pointer hover:underline"
+				>
+					+ Thêm Web
+				</button>
+			</div>
+
+			{#if webShortcuts.length === 0}
+				<div class="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/60 text-center text-xs text-zinc-500">
+					Chưa có shortcut Web nào. Bấm "+ Thêm Web" để lưu các trang yêu thích.
+				</div>
+			{:else}
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
+					{#each webShortcuts as s (s.id)}
+						<a
+							href={s.url}
+							target="_blank"
+							rel="noreferrer"
+							title={s.url}
+							class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-indigo-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
+						>
+							<!-- 3-Dots Edit Button on top-left -->
+							<button
+								onclick={(e) => openEditShortcut(s, e)}
+								class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-700/80 transition-all cursor-pointer"
+								title="Sửa Shortcut"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+								</svg>
+							</button>
+
+							<!-- Delete button on top-right -->
+							<button
+								onclick={(e) => removeShortcut(s.id, e)}
+								class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10 transition-all cursor-pointer"
+								title="Xóa Shortcut"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+
+							<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-zinc-800/80 border border-zinc-700/60 shadow-lg shadow-black/40 group-hover:scale-110 transition-transform overflow-hidden p-2">
+								{#if !failedFaviconSet.has(s.id) && getFaviconUrl(s.url)}
+									<img
+										src={getFaviconUrl(s.url)}
+										alt={s.title}
+										onerror={() => handleFaviconError(s.id)}
+										class="w-7 h-7 object-contain rounded"
+										loading="lazy"
+									/>
+								{:else}
+									<span class="select-none text-2xl">🌐</span>
+								{/if}
+							</div>
+							<span class="mt-2.5 text-xs font-bold text-zinc-300 group-hover:text-white truncate max-w-full text-center">
+								{s.title}
+							</span>
+						</a>
+					{/each}
+				</div>
+			{/if}
 		</div>
 
-		<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
-			{#each shortcuts as s (s.id)}
-				<a
-					href={s.url}
-					target={isLocalShortcut(s.url) ? '_self' : '_blank'}
-					rel="noreferrer"
-					title={isLocalShortcut(s.url) ? `Local App: ${getDisplayUrl(s.url)}` : s.url}
-					class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-indigo-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
+		<!-- 3B. LOCAL APPS & GAMES -->
+		<div class="space-y-3 pt-2">
+			<div class="flex items-center justify-between">
+				<h2 class="text-xs font-bold text-zinc-400 uppercase tracking-wider flex items-center gap-2">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4 text-emerald-400">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M9 17.25v1.007a3 3 0 0 1-.879 2.122L7.5 21h9l-.621-.621A3 3 0 0 1 15 18.257V17.25m6-12V15a2.25 2.25 0 0 1-2.25 2.25H5.25A2.25 2.25 0 0 1 3 15V5.25m18 0A2.25 2.25 0 0 0 18.75 3H5.25A2.25 2.25 0 0 0 3 5.25m18 0H3" />
+					</svg>
+					Ứng Dụng & Game Máy ({appShortcuts.length})
+				</h2>
+
+				<button
+					onclick={() => {
+						editingShortcut = null;
+						newShortcutTitle = '';
+						newShortcutUrl = '';
+						shortcutType = 'local';
+						showAddShortcutModal = true;
+					}}
+					class="text-[11px] font-bold text-emerald-400 hover:text-emerald-300 flex items-center gap-1 cursor-pointer hover:underline"
 				>
-					<!-- 3-Dots Edit Button on top-left -->
-					<button
-						onclick={(e) => openEditShortcut(s, e)}
-						class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-700/80 transition-all cursor-pointer"
-						title="Edit Shortcut"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
-						</svg>
-					</button>
+					+ Thêm File / App
+				</button>
+			</div>
 
-					<!-- Delete button on top-right -->
-					<button
-						onclick={(e) => removeShortcut(s.id, e)}
-						class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10 transition-all cursor-pointer"
-						title="Delete Shortcut"
-					>
-						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
-							<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
-						</svg>
-					</button>
+			{#if appShortcuts.length === 0}
+				<div class="p-6 rounded-2xl bg-zinc-900/30 border border-zinc-800/60 text-center text-xs text-zinc-500">
+					Chưa có File hoặc App máy nào. Bấm "+ Thêm File / App" để mở game hoặc phần mềm từ xa trên máy tính này.
+				</div>
+			{:else}
+				<div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-6 gap-3.5">
+					{#each appShortcuts as s (s.id)}
+						<a
+							href={s.url}
+							target="_self"
+							rel="noreferrer"
+							title={`Mở trên máy: ${getDisplayUrl(s.url)}`}
+							class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-emerald-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
+						>
+							<!-- 3-Dots Edit Button on top-left -->
+							<button
+								onclick={(e) => openEditShortcut(s, e)}
+								class="absolute top-1.5 left-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-400 hover:text-white rounded-md hover:bg-zinc-700/80 transition-all cursor-pointer"
+								title="Sửa Shortcut"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM12.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0ZM18.75 12a.75.75 0 1 1-1.5 0 .75.75 0 0 1 1.5 0Z" />
+								</svg>
+							</button>
 
-					<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-zinc-800/80 border border-zinc-700/60 shadow-lg shadow-black/40 group-hover:scale-110 transition-transform overflow-hidden p-2">
-						{#if isLocalShortcut(s.url)}
-							{#if s.url.toLowerCase().endsWith('.lnk') || s.url.toLowerCase().endsWith('.exe')}
-								<span class="select-none text-2xl">🎮</span>
-							{:else}
-								<span class="select-none text-2xl">💻</span>
-							{/if}
-						{:else if !failedFaviconSet.has(s.id) && getFaviconUrl(s.url)}
-							<img
-								src={getFaviconUrl(s.url)}
-								alt={s.title}
-								onerror={() => handleFaviconError(s.id)}
-								class="w-7 h-7 object-contain rounded"
-								loading="lazy"
-							/>
-						{:else}
-							<span class="select-none text-2xl">🌐</span>
-						{/if}
-					</div>
-					<span class="mt-2.5 text-xs font-bold text-zinc-300 group-hover:text-white truncate max-w-full text-center">
-						{s.title}
-					</span>
-					{#if isLocalShortcut(s.url)}
-						<span class="text-[9px] text-emerald-400/80 font-mono scale-90 -mt-0.5">Local App</span>
-					{/if}
-				</a>
-			{/each}
+							<!-- Delete button on top-right -->
+							<button
+								onclick={(e) => removeShortcut(s.id, e)}
+								class="absolute top-1.5 right-1.5 opacity-0 group-hover:opacity-100 p-1 text-zinc-500 hover:text-rose-400 rounded-md hover:bg-rose-500/10 transition-all cursor-pointer"
+								title="Xóa Shortcut"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M6 18L18 6M6 6l12 12" />
+								</svg>
+							</button>
+
+							<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-zinc-800/80 border border-zinc-700/60 shadow-lg shadow-black/40 group-hover:scale-110 transition-transform overflow-hidden p-2">
+								{#if s.url.toLowerCase().endsWith('.lnk') || s.url.toLowerCase().endsWith('.exe')}
+									<span class="select-none text-2xl">🎮</span>
+								{:else}
+									<span class="select-none text-2xl">💻</span>
+								{/if}
+							</div>
+							<span class="mt-2.5 text-xs font-bold text-zinc-300 group-hover:text-white truncate max-w-full text-center">
+								{s.title}
+							</span>
+							<span class="text-[9px] text-emerald-400/90 font-mono scale-90 -mt-0.5">Desktop App</span>
+						</a>
+					{/each}
+				</div>
+			{/if}
 		</div>
 	</div>
 
