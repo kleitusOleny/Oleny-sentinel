@@ -355,6 +355,45 @@
 		URL.revokeObjectURL(url);
 	}
 
+	function downloadHelperBatFile() {
+		const batContent = `@echo off\r\ntitle Sentinel Local Helper\r\necho Dang khoi chay Sentinel Local Helper tren cong 45678...\r\npowershell -NoProfile -ExecutionPolicy Bypass -Command "$port = 45678; $listener = New-Object System.Net.HttpListener; $listener.Prefixes.Add('http://127.0.0.1:' + $port + '/'); try { $listener.Start(); Write-Host 'Sentinel Local Helper da san sang! Hay thu nho cua so nay de su dung.' -ForegroundColor Green } catch { Write-Host 'Loi: ' $_ -ForegroundColor Red; pause; exit }; while ($listener.IsListening) { try { $ctx = $listener.GetContext(); $req = $ctx.Request; $res = $ctx.Response; $res.AddHeader('Access-Control-Allow-Origin', '*'); $res.AddHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS'); $res.AddHeader('Access-Control-Allow-Headers', 'Content-Type'); if ($req.HttpMethod -eq 'OPTIONS') { $res.StatusCode = 200; $res.Close(); continue }; if ($req.Url.AbsolutePath -eq '/status') { $b = [System.Text.Encoding]::UTF8.GetBytes('{\\"status\\":\\"ok\\"}'); $res.OutputStream.Write($b, 0, $b.Length); $res.Close(); continue }; if ($req.Url.AbsolutePath -eq '/launch') { $path = $null; if ($req.HttpMethod -eq 'POST') { $reader = New-Object System.IO.StreamReader($req.InputStream, $req.ContentEncoding); $json = $reader.ReadToEnd() | ConvertFrom-Json; $path = $json.path }; if (-not $path) { $path = $req.QueryString['path'] }; if ($path) { $path = $path.Trim().Trim('\\"').Trim(\\"'\\"); if (Test-Path $path) { Start-Process -FilePath $path; $b = [System.Text.Encoding]::UTF8.GetBytes('{\\"status\\":\\"success\\"}'); $res.StatusCode = 200 } else { $b = [System.Text.Encoding]::UTF8.GetBytes('{\\"status\\":\\"not_found\\"}'); $res.StatusCode = 404 } } else { $b = [System.Text.Encoding]::UTF8.GetBytes('{\\"status\\":\\"missing_path\\"}'); $res.StatusCode = 400 }; $res.OutputStream.Write($b, 0, $b.Length); $res.Close(); continue }; $res.StatusCode = 404; $res.Close() } catch {} }"\r\npause\r\n`;
+
+		const blob = new Blob([batContent], { type: 'application/octet-stream' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'run_sentinel_helper.bat';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
+	async function handleLaunchLocalApp(e: MouseEvent, s: ShortcutItem) {
+		e.preventDefault();
+		const rawPath = getDisplayUrl(s.url);
+
+		try {
+			// Thử gọi Local Helper chạy ngầm trước (Cách 3 - Mượt mà không popup)
+			const res = await fetch('http://127.0.0.1:45678/launch', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ path: rawPath }),
+				signal: AbortSignal.timeout(1200)
+			});
+
+			if (res.ok) {
+				const data = await res.json();
+				if (data.status === 'success') {
+					return; // Đã chạy thành công qua helper
+				}
+			}
+		} catch {}
+
+		// Nếu Helper chưa bật, fallback sang custom protocol sentinel-run:// (Cách 1)
+		window.location.href = s.url;
+	}
+
 	function saveOrUpdateShortcut() {
 		if (!newShortcutTitle.trim() || !newShortcutUrl.trim()) return;
 		let rawUrl = newShortcutUrl.trim();
@@ -952,8 +991,9 @@
 							href={s.url}
 							target="_self"
 							rel="noreferrer"
+							onclick={(e) => handleLaunchLocalApp(e, s)}
 							title={`Mở trên máy: ${getDisplayUrl(s.url)}`}
-							class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-emerald-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
+							class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-emerald-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md cursor-pointer"
 						>
 							<!-- 3-Dots Edit Button on top-left -->
 							<button
@@ -1118,25 +1158,33 @@
 				</div>
 
 				{#if shortcutType === 'local'}
-					<div class="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-900/50 text-[11px] text-emerald-300 space-y-1.5">
+					<div class="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-900/50 text-[11px] text-emerald-300 space-y-2">
 						<div class="flex items-center gap-1.5 font-bold text-emerald-400">
-							<span>💡 Hỗ trợ mở trực tiếp file & game trên Windows</span>
+							<span>⚡ Tự động mở App/Game trên máy tính</span>
 						</div>
 						<p class="text-zinc-400">
-							Khi bấm, trình duyệt sẽ gọi giao thức <code class="text-emerald-400 font-mono">sentinel-run://</code> để Windows tự khởi chạy tệp tin trên máy tính của bạn.
+							Hệ thống sẽ gọi trực tiếp <b>Local Helper</b> chạy ngầm (hoàn toàn không cần cài Registry .reg, không có popup hỏi).
 						</p>
-						<div class="pt-1">
+						<div class="flex items-center gap-2 pt-1 flex-wrap">
 							<button
 								type="button"
-								onclick={downloadProtocolRegFile}
-								class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer transition-all shadow"
+								onclick={downloadHelperBatFile}
+								class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer transition-all shadow"
 							>
 								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
 									<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
 								</svg>
-								Tải file kích hoạt Protocol (.reg)
+								Tải Local Helper (.bat)
 							</button>
-							<span class="text-[10px] text-zinc-500 ml-1.5">(Chỉ cần chạy 1 lần nếu máy khác truy cập)</span>
+
+							<button
+								type="button"
+								onclick={downloadProtocolRegFile}
+								class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-300 font-medium text-[10px] cursor-pointer transition-all"
+								title="Dành cho ai thích dùng giao thức URL Registry"
+							>
+								Tải file .reg (Dự phòng)
+							</button>
 						</div>
 					</div>
 				{:else}
