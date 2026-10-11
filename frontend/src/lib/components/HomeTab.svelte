@@ -278,9 +278,28 @@
 	let editingShortcut = $state<ShortcutItem | null>(null);
 	let newShortcutTitle = $state('');
 	let newShortcutUrl = $state('');
+	let shortcutType = $state<'web' | 'local'>('web');
 	let failedFaviconSet = $state<Set<string>>(new Set());
 
+	function isLocalShortcut(url: string): boolean {
+		return /^sentinel-run:\/\//i.test(url) || /^[a-zA-Z]:[\\\/]/i.test(url) || /^\\\\/i.test(url);
+	}
+
+	function getDisplayUrl(url: string): string {
+		if (/^sentinel-run:\/\//i.test(url)) {
+			try {
+				return decodeURIComponent(url.replace(/^sentinel-run:\/\//i, '').replace(/\/$/, ''));
+			} catch {
+				return url.replace(/^sentinel-run:\/\//i, '');
+			}
+		}
+		return url;
+	}
+
 	function getFaviconUrl(rawUrl: string): string {
+		if (isLocalShortcut(rawUrl)) {
+			return '';
+		}
 		try {
 			const parsed = new URL(rawUrl);
 			return `https://www.google.com/s2/favicons?domain=${parsed.hostname}&sz=64`;
@@ -312,11 +331,40 @@
 		} catch {}
 	}
 
+	function downloadProtocolRegFile() {
+		const regContent = `Windows Registry Editor Version 5.00\r\n\r\n` +
+			`[HKEY_CURRENT_USER\\Software\\Classes\\sentinel-run]\r\n` +
+			`@="URL:Sentinel Run Protocol"\r\n` +
+			`"URL Protocol"=""\r\n\r\n` +
+			`[HKEY_CURRENT_USER\\Software\\Classes\\sentinel-run\\shell]\r\n\r\n` +
+			`[HKEY_CURRENT_USER\\Software\\Classes\\sentinel-run\\shell\\open]\r\n\r\n` +
+			`[HKEY_CURRENT_USER\\Software\\Classes\\sentinel-run\\shell\\open\\command]\r\n` +
+			`@="powershell.exe -WindowStyle Hidden -NoProfile -ExecutionPolicy Bypass -Command \\"& { Add-Type -AssemblyName System.Windows.Forms; param($url) $path = $url -replace \\\\\\"^sentinel-run://\\\\\\", \\\\\\"\\\\\\" -replace \\\\\\"/[\\\\$]\\\\\\", \\\\\\"\\\\\\"; $path = [System.Uri]::UnescapeDataString($path); if (Test-Path $path) { Start-Process -FilePath $path } else { [System.Windows.Forms.MessageBox]::Show(\\\\\\"Khong tim thay tep hoac loi duong dan: $path\\\\\\", \\\\\\"Sentinel Run Error\\\\\\", 0, 16) } } ''%1''\\""\r\n`;
+
+		const blob = new Blob([regContent], { type: 'application/octet-stream' });
+		const url = URL.createObjectURL(blob);
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'setup_sentinel_run_protocol.reg';
+		document.body.appendChild(a);
+		a.click();
+		document.body.removeChild(a);
+		URL.revokeObjectURL(url);
+	}
+
 	function saveOrUpdateShortcut() {
 		if (!newShortcutTitle.trim() || !newShortcutUrl.trim()) return;
-		let formattedUrl = newShortcutUrl.trim();
-		if (!/^https?:\/\//i.test(formattedUrl)) {
-			formattedUrl = 'https://' + formattedUrl;
+		let rawUrl = newShortcutUrl.trim();
+
+		let formattedUrl = rawUrl;
+		if (shortcutType === 'local' || isLocalShortcut(rawUrl)) {
+			// Chuẩn hóa đường dẫn local: bỏ tiền tố sentinel-run:// cũ nếu có
+			let cleanPath = rawUrl.replace(/^sentinel-run:\/\//i, '').replace(/^"|"$/g, '').trim();
+			formattedUrl = `sentinel-run://${encodeURIComponent(cleanPath)}`;
+		} else {
+			if (!/^[a-zA-Z][a-zA-Z0-9+.-]*:\/\//i.test(formattedUrl)) {
+				formattedUrl = 'https://' + formattedUrl;
+			}
 		}
 
 		if (editingShortcut) {
@@ -333,7 +381,7 @@
 					id: Date.now().toString(),
 					title: newShortcutTitle.trim(),
 					url: formattedUrl,
-					color: 'from-indigo-600 to-violet-600'
+					color: isLocalShortcut(formattedUrl) ? 'from-emerald-600 to-teal-600' : 'from-indigo-600 to-violet-600'
 				}
 			];
 		}
@@ -349,7 +397,13 @@
 		e.stopPropagation();
 		editingShortcut = s;
 		newShortcutTitle = s.title;
-		newShortcutUrl = s.url;
+		if (isLocalShortcut(s.url)) {
+			shortcutType = 'local';
+			newShortcutUrl = getDisplayUrl(s.url);
+		} else {
+			shortcutType = 'web';
+			newShortcutUrl = s.url;
+		}
 		showAddShortcutModal = true;
 	}
 
@@ -803,8 +857,9 @@
 			{#each shortcuts as s (s.id)}
 				<a
 					href={s.url}
-					target="_blank"
+					target={isLocalShortcut(s.url) ? '_self' : '_blank'}
 					rel="noreferrer"
+					title={isLocalShortcut(s.url) ? `Local App: ${getDisplayUrl(s.url)}` : s.url}
 					class="group relative flex flex-col items-center justify-center p-4 rounded-2xl bg-zinc-900/40 hover:bg-zinc-800/60 border border-zinc-800/80 hover:border-indigo-500/50 transition-all duration-200 hover:-translate-y-1 shadow-md"
 				>
 					<!-- 3-Dots Edit Button on top-left -->
@@ -830,7 +885,13 @@
 					</button>
 
 					<div class="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl bg-zinc-800/80 border border-zinc-700/60 shadow-lg shadow-black/40 group-hover:scale-110 transition-transform overflow-hidden p-2">
-						{#if !failedFaviconSet.has(s.id) && getFaviconUrl(s.url)}
+						{#if isLocalShortcut(s.url)}
+							{#if s.url.toLowerCase().endsWith('.lnk') || s.url.toLowerCase().endsWith('.exe')}
+								<span class="select-none text-2xl">🎮</span>
+							{:else}
+								<span class="select-none text-2xl">💻</span>
+							{/if}
+						{:else if !failedFaviconSet.has(s.id) && getFaviconUrl(s.url)}
 							<img
 								src={getFaviconUrl(s.url)}
 								alt={s.title}
@@ -845,6 +906,9 @@
 					<span class="mt-2.5 text-xs font-bold text-zinc-300 group-hover:text-white truncate max-w-full text-center">
 						{s.title}
 					</span>
+					{#if isLocalShortcut(s.url)}
+						<span class="text-[9px] text-emerald-400/80 font-mono scale-90 -mt-0.5">Local App</span>
+					{/if}
 				</a>
 			{/each}
 		</div>
@@ -919,54 +983,105 @@
 <!-- MODAL: ADD / EDIT SHORTCUT -->
 {#if showAddShortcutModal}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
-		<div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
-			<h3 class="text-base font-extrabold text-white">
-				{editingShortcut ? 'Edit Shortcut' : 'Add Shortcut'}
-			</h3>
+		<div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-md space-y-4 shadow-2xl">
+			<div class="flex items-center justify-between">
+				<h3 class="text-base font-extrabold text-white">
+					{editingShortcut ? 'Edit Shortcut' : 'Add Shortcut'}
+				</h3>
+				<!-- Type Selector Tabs -->
+				<div class="flex items-center p-1 bg-zinc-950 rounded-xl border border-zinc-800">
+					<button
+						type="button"
+						onclick={() => (shortcutType = 'web')}
+						class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer {shortcutType === 'web' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}"
+					>
+						🌐 Web
+					</button>
+					<button
+						type="button"
+						onclick={() => (shortcutType = 'local')}
+						class="px-2.5 py-1 text-xs font-semibold rounded-lg transition-all cursor-pointer {shortcutType === 'local' ? 'bg-emerald-600 text-white shadow' : 'text-zinc-400 hover:text-zinc-200'}"
+					>
+						💻 File/App Máy
+					</button>
+				</div>
+			</div>
 
-			<div class="space-y-3 text-xs">
+			<div class="space-y-3.5 text-xs">
 				<div>
-					<label for="shortcut-name-input" class="block text-zinc-400 mb-1 font-semibold">Name</label>
+					<label for="shortcut-name-input" class="block text-zinc-400 mb-1 font-semibold">Tên Shortcut</label>
 					<input
 						id="shortcut-name-input"
 						type="text"
 						bind:value={newShortcutTitle}
-						placeholder="Example: Portainer, GitHub..."
+						placeholder={shortcutType === 'web' ? 'Ví dụ: Portainer, GitHub...' : 'Ví dụ: Neverness To Everness, VSCode...'}
 						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
 					/>
 				</div>
 
 				<div>
-					<label for="shortcut-url-input" class="block text-zinc-400 mb-1 font-semibold">URL</label>
+					<label for="shortcut-url-input" class="block text-zinc-400 mb-1 font-semibold">
+						{shortcutType === 'web' ? 'Địa chỉ Web / IP URL' : 'Đường dẫn tệp tin trên máy cục bộ (.lnk, .exe)'}
+					</label>
 					<input
 						id="shortcut-url-input"
 						type="text"
 						bind:value={newShortcutUrl}
-						placeholder="http://100.94.177.113:9000 or https://..."
-						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+						placeholder={
+							shortcutType === 'web'
+								? 'http://100.94.177.113:9000 hoặc https://...'
+								: 'C:\\Users\\oleny\\OneDrive\\Desktop\\Neverness To Everness.lnk'
+						}
+						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 {shortcutType === 'local' ? 'focus:ring-emerald-500 font-mono text-[11px]' : 'focus:ring-indigo-500'}"
 					/>
 				</div>
 
-				<div class="text-[11px] text-zinc-500 italic">
-					* Favicon (.ico) is automatically fetched from the URL. Falls back to 🌐 if not found.
-				</div>
+				{#if shortcutType === 'local'}
+					<div class="p-3 rounded-2xl bg-emerald-950/20 border border-emerald-900/50 text-[11px] text-emerald-300 space-y-1.5">
+						<div class="flex items-center gap-1.5 font-bold text-emerald-400">
+							<span>💡 Hỗ trợ mở trực tiếp file & game trên Windows</span>
+						</div>
+						<p class="text-zinc-400">
+							Khi bấm, trình duyệt sẽ gọi giao thức <code class="text-emerald-400 font-mono">sentinel-run://</code> để Windows tự khởi chạy tệp tin trên máy tính của bạn.
+						</p>
+						<div class="pt-1">
+							<button
+								type="button"
+								onclick={downloadProtocolRegFile}
+								class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] cursor-pointer transition-all shadow"
+							>
+								<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+									<path stroke-linecap="round" stroke-linejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21.75 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3" />
+								</svg>
+								Tải file kích hoạt Protocol (.reg)
+							</button>
+							<span class="text-[10px] text-zinc-500 ml-1.5">(Chỉ cần chạy 1 lần nếu máy khác truy cập)</span>
+						</div>
+					</div>
+				{:else}
+					<div class="text-[11px] text-zinc-500 italic">
+						* Favicon (.ico) tự động lấy theo tên miền trang web.
+					</div>
+				{/if}
 			</div>
 
 			<div class="flex items-center justify-end gap-2 pt-2">
 				<button
+					type="button"
 					onclick={() => {
 						showAddShortcutModal = false;
 						editingShortcut = null;
 					}}
 					class="px-3.5 py-1.5 rounded-xl bg-zinc-800 text-zinc-400 hover:text-white text-xs font-semibold cursor-pointer"
 				>
-					Cancel
+					Hủy
 				</button>
 				<button
+					type="button"
 					onclick={saveOrUpdateShortcut}
-					class="px-4 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-950"
+					class="px-4 py-1.5 rounded-xl {shortcutType === 'local' ? 'bg-emerald-600 hover:bg-emerald-500' : 'bg-indigo-600 hover:bg-indigo-500'} text-white text-xs font-bold cursor-pointer shadow-lg shadow-indigo-950 transition-colors"
 				>
-					{editingShortcut ? 'Save' : 'Add'}
+					{editingShortcut ? 'Lưu' : 'Thêm'}
 				</button>
 			</div>
 		</div>
