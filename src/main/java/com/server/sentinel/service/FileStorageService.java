@@ -264,6 +264,52 @@ public class FileStorageService {
         return true;
     }
 
+    /**
+     * Đổi tên file hoặc thư mục
+     */
+    public FileItemDto renameItem(String oldPath, String newName) throws IOException {
+        if (oldPath == null || oldPath.trim().isEmpty() || oldPath.equals("/")) {
+            throw new IllegalArgumentException("Không thể đổi tên thư mục gốc.");
+        }
+        if (newName == null || newName.trim().isEmpty() || newName.contains("/") || newName.contains("\\")) {
+            throw new IllegalArgumentException("Tên mới không hợp lệ.");
+        }
+
+        Path source = resolveAndVerify(oldPath);
+        if (!Files.exists(source)) {
+            throw new NoSuchFileException("Tệp tin hoặc thư mục không tồn tại: " + oldPath);
+        }
+
+        Path destination = source.getParent().resolve(newName.trim()).normalize();
+        if (!destination.startsWith(rootStoragePath)) {
+            throw new SecurityException("Truy cập không hợp lệ.");
+        }
+
+        if (Files.exists(destination)) {
+            throw new IllegalArgumentException("Tên tệp tin hoặc thư mục đã tồn tại.");
+        }
+
+        Files.move(source, destination, StandardCopyOption.ATOMIC_MOVE);
+        log.info("Đã đổi tên '{}' thành '{}'", source, destination);
+
+        String relPath = rootStoragePath.relativize(destination).toString().replace("\\", "/");
+        boolean isDir = Files.isDirectory(destination);
+        long size = isDir ? 0 : Files.size(destination);
+        long lastModified = Files.getLastModifiedTime(destination).toMillis();
+        String ext = isDir ? "" : getFileExtension(destination.getFileName().toString());
+        String mimeType = isDir ? "directory" : guessMimeType(destination.getFileName().toString());
+
+        return new FileItemDto(
+                destination.getFileName().toString(),
+                relPath,
+                size,
+                isDir,
+                lastModified,
+                ext,
+                mimeType
+        );
+    }
+
     private String getFileExtension(String filename) {
         int idx = filename.lastIndexOf('.');
         return (idx > 0 && idx < filename.length() - 1) ? filename.substring(idx + 1).toLowerCase() : "";

@@ -237,6 +237,35 @@ public class FileStorageController {
     }
 
     /**
+     * Đổi tên tệp tin hoặc thư mục
+     * POST /api/storage/rename
+     */
+    @PostMapping("/rename")
+    public ResponseEntity<?> renameFile(@RequestBody Map<String, String> payload) {
+        String path = payload.get("path");
+        String newName = payload.get("newName");
+        if (path == null || path.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Đường dẫn tệp tin không được để trống."));
+        }
+        if (newName == null || newName.trim().isEmpty()) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Tên mới không được để trống."));
+        }
+
+        try {
+            FileItemDto renamedItem = fileStorageService.renameItem(path, newName);
+            return ResponseEntity.ok(Map.of(
+                    "status", "success",
+                    "message", "Đã đổi tên thành công.",
+                    "item", renamedItem
+            ));
+        } catch (SecurityException e) {
+            return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));
+        } catch (Exception e) {
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", e.getMessage()));
+        }
+    }
+
+    /**
      * Giải nén file ZIP hoặc RAR
      * POST /api/storage/extract
      */

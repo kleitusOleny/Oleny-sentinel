@@ -54,6 +54,11 @@
 	let deleteTarget = $state<FileItem | null>(null);
 	let isDeleting = $state(false);
 
+	// Rename dialog
+	let renameTarget = $state<FileItem | null>(null);
+	let renameNewName = $state('');
+	let isRenaming = $state(false);
+
 	// Direct IP Fast Upload Mode (Bypass Cloudflare Tunnel)
 	// Server Tailscale IP: 100.94.177.113:8081
 	let directUploadMode = $state(false);
@@ -191,6 +196,42 @@
 		}
 	}
 
+	function openRenameModal(item: FileItem) {
+		renameTarget = item;
+		renameNewName = item.name;
+	}
+
+	async function confirmRename() {
+		if (!renameTarget || !renameNewName.trim()) return;
+		if (renameNewName.trim() === renameTarget.name) {
+			renameTarget = null;
+			return;
+		}
+
+		isRenaming = true;
+		try {
+			const res = await fetch(`${apiBase}/storage/rename`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					path: renameTarget.path,
+					newName: renameNewName.trim()
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				throw new Error(data.message || 'Đổi tên thất bại');
+			}
+			renameTarget = null;
+			renameNewName = '';
+			await loadDirectory(currentPath);
+		} catch (err: any) {
+			alert(`Lỗi khi đổi tên: ${err.message}`);
+		} finally {
+			isRenaming = false;
+		}
+	}
+
 	// Extraction states
 	let isExtracting = $state(false);
 	let extractTargetName = $state('');
@@ -276,9 +317,47 @@
 			}
 		};
 
+		// Lắng nghe sự kiện Ctrl+V / Paste ảnh từ Clipboard
+		const handlePaste = (e: ClipboardEvent) => {
+			// Bỏ qua nếu người dùng đang gõ trong ô input/textarea (ví dụ ô tìm kiếm hoặc modal)
+			const activeTag = document.activeElement?.tagName?.toLowerCase();
+			if (activeTag === 'input' || activeTag === 'textarea') {
+				return;
+			}
+
+			const items = e.clipboardData?.items;
+			if (!items || items.length === 0) return;
+
+			const imageFiles: File[] = [];
+			for (let i = 0; i < items.length; i++) {
+				const item = items[i];
+				if (item.type.startsWith('image/')) {
+					const file = item.getAsFile();
+					if (file) {
+						// Tạo tên file có timestamp rõ ràng nếu file dán tên là image.png
+						const now = new Date();
+						const timestamp = `${now.getFullYear()}${String(now.getMonth() + 1).padStart(2, '0')}${String(now.getDate()).padStart(2, '0')}_${String(now.getHours()).padStart(2, '0')}${String(now.getMinutes()).padStart(2, '0')}${String(now.getSeconds()).padStart(2, '0')}`;
+						const ext = file.type.split('/')[1] || 'png';
+						const finalName = `clipboard_${timestamp}.${ext}`;
+						const namedFile = new File([file], finalName, { type: file.type });
+						imageFiles.push(namedFile);
+					}
+				}
+			}
+
+			if (imageFiles.length > 0) {
+				e.preventDefault();
+				const uploadTargetBase = directUploadMode && directBackendUrl ? directBackendUrl : apiBase;
+				transferQueue.addUploads(imageFiles, currentPath, uploadTargetBase);
+				transferQueue.setOpen(true);
+			}
+		};
+
 		window.addEventListener('sentinel:file-uploaded', handleUploadedEvent);
+		window.addEventListener('paste', handlePaste);
 		return () => {
 			window.removeEventListener('sentinel:file-uploaded', handleUploadedEvent);
+			window.removeEventListener('paste', handlePaste);
 		};
 	});
 </script>
@@ -571,6 +650,16 @@
 										{/if}
 
 										<button
+											onclick={() => openRenameModal(item)}
+											class="p-1.5 text-zinc-400 hover:text-amber-300 hover:bg-amber-600/10 rounded-lg transition-colors cursor-pointer"
+											title="Đổi tên"
+										>
+											<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+												<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+											</svg>
+										</button>
+
+										<button
 											onclick={() => (deleteTarget = item)}
 											class="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-600/10 rounded-lg transition-colors cursor-pointer"
 											title="Xóa"
@@ -729,6 +818,15 @@
 							</button>
 						{/if}
 						<button
+							onclick={() => openRenameModal(item)}
+							class="p-1 text-zinc-400 hover:text-amber-300 rounded cursor-pointer"
+							title="Đổi tên"
+						>
+							<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5">
+								<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+							</svg>
+						</button>
+						<button
 							onclick={() => (deleteTarget = item)}
 							class="p-1 text-zinc-500 hover:text-rose-400 rounded cursor-pointer"
 							title="Xóa"
@@ -776,6 +874,45 @@
 					{isCreatingFolder ? 'Đang tạo...' : 'Tạo mới'}
 				</button>
 			</div>
+		</div>
+	</div>
+{/if}
+
+<!-- MODAL: ĐỔI TÊN FILE / THƯ MỤC -->
+{#if renameTarget}
+	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm animate-fadeIn">
+		<div class="bg-zinc-900 border border-zinc-800 rounded-2xl p-6 max-w-sm w-full space-y-4 shadow-2xl">
+			<h3 class="text-base font-bold text-white flex items-center gap-2">
+				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 text-amber-400">
+					<path stroke-linecap="round" stroke-linejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+				</svg>
+				Đổi tên {renameTarget.directory ? 'thư mục' : 'tệp tin'}
+			</h3>
+			<p class="text-xs text-zinc-400">Nhập tên mới cho <code class="bg-zinc-950 px-1 py-0.5 rounded text-amber-400">{renameTarget.name}</code></p>
+			<form onsubmit={(e) => { e.preventDefault(); confirmRename(); }}>
+				<input
+					type="text"
+					bind:value={renameNewName}
+					class="w-full bg-zinc-950 border border-zinc-800 text-zinc-100 placeholder-zinc-500 rounded-xl px-3.5 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-amber-500"
+					autofocus
+				/>
+				<div class="flex items-center justify-end gap-2 pt-4">
+					<button
+						type="button"
+						onclick={() => (renameTarget = null)}
+						class="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-white hover:bg-zinc-800 transition-all cursor-pointer"
+					>
+						Hủy
+					</button>
+					<button
+						type="submit"
+						disabled={isRenaming || !renameNewName.trim() || renameNewName.trim() === renameTarget.name}
+						class="px-4 py-2 rounded-xl text-xs font-bold bg-amber-600 hover:bg-amber-500 text-white transition-all cursor-pointer disabled:opacity-50"
+					>
+						{isRenaming ? 'Đang đổi tên...' : 'Đổi tên'}
+					</button>
+				</div>
+			</form>
 		</div>
 	</div>
 {/if}
