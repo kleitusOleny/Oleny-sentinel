@@ -61,12 +61,17 @@
 	let showDeleteConfirm = $state(false);
 	let eventToDelete = $state<CalendarEvent | null>(null);
 
-	// Drag to resize / adjust duration in Day & Week views
-	let isResizing = $state(false);
-	let resizingEvent = $state<CalendarEvent | null>(null);
-	let resizeStartY = $state(0);
-	let resizeOriginalEndMin = $state(0);
-	let resizeCurrentEndMin = $state(0);
+	// --- Interactive Mouse Operation: Resize or Move ---
+	// Mode: null | 'resize-bottom' | 'resize-top' | 'move'
+	let activeDragMode = $state<'resize-bottom' | 'resize-top' | 'move' | null>(null);
+	let activeDragEvent = $state<CalendarEvent | null>(null);
+	let dragStartY = $state(0);
+	let dragStartX = $state(0);
+	let dragOriginStartMin = $state(0);
+	let dragOriginEndMin = $state(0);
+	let dragCurrentStartMin = $state(0);
+	let dragCurrentEndMin = $state(0);
+	let hasDraggedDistance = $state(false); // Ngăn trigger click mở modal khi vừa kéo thả xong
 
 	const COLOR_OPTIONS = [
 		{ id: 'indigo', label: 'Xanh Chàm', bg: 'bg-indigo-600', border: 'border-indigo-500', text: 'text-indigo-400', badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
@@ -123,28 +128,72 @@
 		fetchEvents();
 
 		const handleMouseMove = (e: MouseEvent) => {
-			if (!isResizing || !resizingEvent) return;
-			const deltaY = e.clientY - resizeStartY;
-			// 64px = 60 phút => snap 15 phút
+			if (!activeDragMode || !activeDragEvent) return;
+
+			const deltaY = e.clientY - dragStartY;
+			if (Math.abs(deltaY) > 3) {
+				hasDraggedDistance = true;
+			}
+
+			// 64px = 60 phút => bước nhảy (snap) 15 phút = 16px
 			const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15;
-			const startMin = parseMinutesFromTimeString(formatDisplayTime(resizingEvent.startDate));
-			const newEndMin = Math.max(startMin + 15, Math.min(23 * 60 + 59, resizeOriginalEndMin + deltaMinutes));
-			resizeCurrentEndMin = newEndMin;
+
+			if (activeDragMode === 'resize-bottom') {
+				// Kéo cạnh dưới: điều chỉnh giờ kết thúc (kéo lên hoặc kéo xuống)
+				const newEnd = Math.max(dragOriginStartMin + 15, Math.min(23 * 60 + 59, dragOriginEndMin + deltaMinutes));
+				dragCurrentEndMin = newEnd;
+			} else if (activeDragMode === 'resize-top') {
+				// Kéo cạnh trên: điều chỉnh giờ bắt đầu (kéo lên hoặc kéo xuống)
+				const newStart = Math.min(dragOriginEndMin - 15, Math.max(0, dragOriginStartMin + deltaMinutes));
+				dragCurrentStartMin = newStart;
+			} else if (activeDragMode === 'move') {
+				// Di chuyển toàn bộ khung thời gian của sự kiện
+				const duration = dragOriginEndMin - dragOriginStartMin;
+				let newStart = dragOriginStartMin + deltaMinutes;
+				let newEnd = newStart + duration;
+
+				if (newStart < 0) {
+					newStart = 0;
+					newEnd = duration;
+				} else if (newEnd > 23 * 60 + 59) {
+					newEnd = 23 * 60 + 59;
+					newStart = newEnd - duration;
+				}
+
+				dragCurrentStartMin = newStart;
+				dragCurrentEndMin = newEnd;
+			}
 		};
 
 		const handleMouseUp = async () => {
-			if (!isResizing || !resizingEvent) return;
-			const targetEvent = resizingEvent;
-			const finalEndMin = resizeCurrentEndMin;
-			isResizing = false;
-			resizingEvent = null;
+			if (!activeDragMode || !activeDragEvent) return;
 
-			const newEndTimeStr = formatMinutesToTimeString(finalEndMin);
-			const baseDate = targetEvent.endDate ? targetEvent.endDate.substring(0, 10) : targetEvent.startDate.substring(0, 10);
-			const updatedEndDate = `${baseDate}T${newEndTimeStr}:00`;
+			const targetEvent = activeDragEvent;
+			const mode = activeDragMode;
+			const wasDragged = hasDraggedDistance;
 
-			// Optimistic update
-			events = events.map((ev) => (ev.id === targetEvent.id ? { ...ev, endDate: updatedEndDate } : ev));
+			activeDragMode = null;
+			activeDragEvent = null;
+
+			if (!wasDragged) {
+				return;
+			}
+
+			const newStartTimeStr = formatMinutesToTimeString(dragCurrentStartMin);
+			const newEndTimeStr = formatMinutesToTimeString(dragCurrentEndMin);
+
+			const startDatePart = targetEvent.startDate.substring(0, 10);
+			const endDatePart = targetEvent.endDate ? targetEvent.endDate.substring(0, 10) : startDatePart;
+
+			const updatedStartDate = `${startDatePart}T${newStartTimeStr}:00`;
+			const updatedEndDate = `${endDatePart}T${newEndTimeStr}:00`;
+
+			// Optimistic local UI update
+			events = events.map((ev) =>
+				ev.id === targetEvent.id
+					? { ...ev, startDate: updatedStartDate, endDate: updatedEndDate }
+					: ev
+			);
 
 			try {
 				const res = await fetch(`${apiBase}/calendar/events/${targetEvent.id}`, {
@@ -152,14 +201,20 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						...targetEvent,
+						startDate: updatedStartDate,
 						endDate: updatedEndDate
 					})
 				});
-				if (!res.ok) throw new Error('Không thể lưu thay đổi độ dài sự kiện.');
+				if (!res.ok) throw new Error('Không thể lưu thay đổi vị trí/thời lượng sự kiện.');
 				await fetchEvents();
 			} catch (err: any) {
 				alert(`Lỗi: ${err.message}`);
 				await fetchEvents();
+			} finally {
+				// Reset sau một khoảng ngắn để tránh event click của modal bắt dính
+				setTimeout(() => {
+					hasDraggedDistance = false;
+				}, 100);
 			}
 		};
 
@@ -270,7 +325,6 @@
 			const maxDays = repeatLimit * 7;
 
 			if (diffDays > 0 && diffDays <= maxDays) {
-				// Nếu ngày trong tuần trùng khớp
 				if (diffDays % 7 === 0) {
 					return true;
 				}
@@ -419,6 +473,7 @@
 	}
 
 	function openEditModal(ev: CalendarEvent, e?: MouseEvent) {
+		if (hasDraggedDistance) return; // Nếu vừa kéo thả chuột thì không mở modal
 		if (e) {
 			e.stopPropagation();
 		}
@@ -532,21 +587,28 @@
 
 	// Tính vị trí Top và Chiều cao (Height) của block sự kiện trong timeline 24 giờ
 	// Mỗi 1 giờ tương đương 64px (1 phút = 64/60 px)
-	function getEventTimelineStyle(ev: CalendarEvent, isBeingResized = false) {
+	function getEventTimelineStyle(ev: CalendarEvent, isBeingOperated = false) {
 		const HOUR_HEIGHT = 64; // px
 		if (ev.allDay || !ev.startDate.includes('T')) {
 			return { top: 0, height: 32, isAllDay: true };
 		}
 
-		const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
-		const startMinutes = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+		let startMinutes = 0;
+		let endMinutes = 0;
 
-		let endMinutes = startMinutes + 60;
-		if (isBeingResized && isResizing) {
-			endMinutes = resizeCurrentEndMin;
-		} else if (ev.endDate && ev.endDate.includes('T')) {
-			const endParts = ev.endDate.substring(11, 16).split(':').map(Number);
-			endMinutes = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+		if (isBeingOperated && activeDragMode && activeDragEvent?.id === ev.id) {
+			startMinutes = dragCurrentStartMin;
+			endMinutes = dragCurrentEndMin;
+		} else {
+			const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
+			startMinutes = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+
+			if (ev.endDate && ev.endDate.includes('T')) {
+				const endParts = ev.endDate.substring(11, 16).split(':').map(Number);
+				endMinutes = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+			} else {
+				endMinutes = startMinutes + 60;
+			}
 		}
 
 		const durationMin = Math.max(15, endMinutes - startMinutes);
@@ -556,16 +618,46 @@
 		return { top, height, isAllDay: false, durationMin };
 	}
 
-	function startResizing(ev: CalendarEvent, e: MouseEvent) {
+	// Bắt đầu Kéo cạnh trên (Resize Top - chỉnh giờ bắt đầu)
+	function handleStartResizeTop(ev: CalendarEvent, e: MouseEvent) {
 		e.stopPropagation();
 		e.preventDefault();
-		isResizing = true;
-		resizingEvent = ev;
-		resizeStartY = e.clientY;
+		initDragOperation(ev, 'resize-top', e);
+	}
 
-		const endParts = (ev.endDate && ev.endDate.includes('T') ? ev.endDate : ev.startDate).substring(11, 16).split(':').map(Number);
-		resizeOriginalEndMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
-		resizeCurrentEndMin = resizeOriginalEndMin;
+	// Bắt đầu Kéo cạnh dưới (Resize Bottom - chỉnh giờ kết thúc)
+	function handleStartResizeBottom(ev: CalendarEvent, e: MouseEvent) {
+		e.stopPropagation();
+		e.preventDefault();
+		initDragOperation(ev, 'resize-bottom', e);
+	}
+
+	// Bắt đầu Kéo thả toàn bộ thẻ để Di chuyển giờ (Move)
+	function handleStartMove(ev: CalendarEvent, e: MouseEvent) {
+		// Chỉ kích hoạt khi click chuột trái và không phải click vào nút bấm khác
+		if (e.button !== 0) return;
+		initDragOperation(ev, 'move', e);
+	}
+
+	function initDragOperation(ev: CalendarEvent, mode: 'resize-bottom' | 'resize-top' | 'move', e: MouseEvent) {
+		activeDragMode = mode;
+		activeDragEvent = ev;
+		dragStartY = e.clientY;
+		dragStartX = e.clientX;
+		hasDraggedDistance = false;
+
+		const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
+		dragOriginStartMin = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+
+		if (ev.endDate && ev.endDate.includes('T')) {
+			const endParts = ev.endDate.substring(11, 16).split(':').map(Number);
+			dragOriginEndMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+		} else {
+			dragOriginEndMin = dragOriginStartMin + 60;
+		}
+
+		dragCurrentStartMin = dragOriginStartMin;
+		dragCurrentEndMin = dragOriginEndMin;
 	}
 </script>
 
@@ -695,7 +787,7 @@
 			<span>{errorMessage}</span>
 		</div>
 	{:else if currentView === 'day'}
-		<!-- DAY VIEW: 24h Timeline with drag resize -->
+		<!-- DAY VIEW: 24h Timeline with drag move & resize -->
 		{@const todayStr = formatDateToYMD(currentDate)}
 		{@const dayEvents = getEventsForDate(todayStr)}
 		{@const allDayEvents = dayEvents.filter((e) => e.allDay || !e.startDate.includes('T'))}
@@ -718,8 +810,9 @@
 					</div>
 				</div>
 
-				<div class="text-xs text-zinc-400 italic">
-					💡 Kéo cạnh dưới sự kiện để thay đổi độ dài thời gian
+				<div class="text-xs text-zinc-400 flex items-center gap-3">
+					<span class="inline-flex items-center gap-1">✋ <b>Kéo giữa:</b> Di chuyển giờ</span>
+					<span class="inline-flex items-center gap-1">↕️ <b>Kéo cạnh trên/dưới:</b> Tăng/giảm thời lượng</span>
 				</div>
 			</div>
 
@@ -774,24 +867,39 @@
 				<!-- Positioned Events Overlay -->
 				<div class="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
 					{#each timedEvents as ev (ev.id)}
-						{@const isBeingResized = isResizing && resizingEvent?.id === ev.id}
-						{@const st = getEventTimelineStyle(ev, isBeingResized)}
+						{@const isBeingOperated = activeDragEvent?.id === ev.id}
+						{@const st = getEventTimelineStyle(ev, isBeingOperated)}
 						{@const cfg = getColorConfig(ev.color)}
 						<div
 							role="button"
 							tabindex="0"
+							onmousedown={(e) => handleStartMove(ev, e)}
 							onclick={(e) => openEditModal(ev, e)}
 							onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
 							style="top: {st.top}px; height: {st.height}px;"
-							class="absolute left-2 right-4 rounded-xl border p-2 shadow-lg backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
+							class="absolute left-2 right-4 rounded-xl border p-2 shadow-lg backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
 						>
-							<div class="flex items-start justify-between gap-2">
+							<!-- Resize Handle TOP (Kéo cạnh trên) -->
+							<div
+								role="slider"
+								aria-label="Kéo cạnh trên để chỉnh giờ bắt đầu"
+								aria-valuenow={st.durationMin || 60}
+								tabindex="0"
+								onmousedown={(e) => handleStartResizeTop(ev, e)}
+								class="w-full h-2.5 -mt-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors group-hover:opacity-100 opacity-40 shrink-0"
+								title="Kéo cạnh trên để chỉnh giờ bắt đầu"
+							>
+								<div class="w-8 h-1 bg-white/60 rounded-full"></div>
+							</div>
+
+							<!-- Content Middle (Kéo để di chuyển) -->
+							<div class="flex items-start justify-between gap-2 my-auto pointer-events-none">
 								<div class="space-y-0.5 min-w-0">
 									<div class="flex items-center gap-1.5 font-bold text-xs flex-wrap">
 										<span class="w-2 h-2 rounded-full {cfg.bg} shrink-0"></span>
 										<span class="truncate text-white font-extrabold">{ev.title}</span>
-										<span class="text-[10px] opacity-75 font-mono">
-											({formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)})
+										<span class="text-[10px] opacity-80 font-mono">
+											({isBeingOperated ? formatMinutesToTimeString(dragCurrentStartMin) : formatDisplayTime(ev.startDate)} - {isBeingOperated ? formatMinutesToTimeString(dragCurrentEndMin) : formatDisplayTime(ev.endDate)})
 										</span>
 										<!-- PHÒNG HỌC / ĐỊA ĐIỂM NỔI BẬT -->
 										{#if ev.location}
@@ -810,15 +918,15 @@
 								</span>
 							</div>
 
-							<!-- Resize Handle (Kéo để chỉnh độ dài) -->
+							<!-- Resize Handle BOTTOM (Kéo cạnh dưới) -->
 							<div
 								role="slider"
-								aria-label="Kéo để chỉnh thời gian kết thúc"
+								aria-label="Kéo cạnh dưới để chỉnh giờ kết thúc"
 								aria-valuenow={st.durationMin || 60}
 								tabindex="0"
-								onmousedown={(e) => startResizing(ev, e)}
-								class="w-full h-3 -mb-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-60"
-								title="Kéo thả để điều chỉnh thời gian kết thúc"
+								onmousedown={(e) => handleStartResizeBottom(ev, e)}
+								class="w-full h-2.5 -mb-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-60 shrink-0"
+								title="Kéo cạnh dưới để chỉnh giờ kết thúc"
 							>
 								<div class="w-8 h-1 bg-white/60 rounded-full"></div>
 							</div>
@@ -874,25 +982,40 @@
 							<!-- Positioned Events inside day column -->
 							<div class="absolute inset-0 pointer-events-none">
 								{#each timedDayEvents as ev (ev.id)}
-									{@const isBeingResized = isResizing && resizingEvent?.id === ev.id}
-									{@const st = getEventTimelineStyle(ev, isBeingResized)}
+									{@const isBeingOperated = activeDragEvent?.id === ev.id}
+									{@const st = getEventTimelineStyle(ev, isBeingOperated)}
 									{@const cfg = getColorConfig(ev.color)}
 									<div
 										role="button"
 										tabindex="0"
+										onmousedown={(e) => handleStartMove(ev, e)}
 										onclick={(e) => openEditModal(ev, e)}
 										onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
 										style="top: {st.top}px; height: {st.height}px;"
-										class="absolute left-1 right-1 rounded-lg border p-1.5 shadow-md backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
+										class="absolute left-1 right-1 rounded-lg border p-1 shadow-md backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
 										title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})${ev.location ? ' - ' + ev.location : ''}`}
 									>
-										<div class="space-y-0.5">
+										<!-- Resize Handle TOP (Kéo cạnh trên) -->
+										<div
+											role="slider"
+											aria-label="Kéo cạnh trên để chỉnh giờ bắt đầu"
+											aria-valuenow={st.durationMin || 60}
+											tabindex="0"
+											onmousedown={(e) => handleStartResizeTop(ev, e)}
+											class="w-full h-2 -mt-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors group-hover:opacity-100 opacity-40 shrink-0"
+											title="Kéo cạnh trên để chỉnh giờ bắt đầu"
+										>
+											<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
+										</div>
+
+										<!-- Middle Content (Kéo để di chuyển) -->
+										<div class="space-y-0.5 my-auto pointer-events-none">
 											<div class="flex items-center gap-1 font-bold text-[11px] truncate">
 												<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
 												<span class="truncate text-white font-extrabold">{ev.title}</span>
 											</div>
-											<div class="text-[9px] opacity-75 font-mono truncate">
-												{formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)}
+											<div class="text-[9px] opacity-80 font-mono truncate">
+												{isBeingOperated ? formatMinutesToTimeString(dragCurrentStartMin) : formatDisplayTime(ev.startDate)} - {isBeingOperated ? formatMinutesToTimeString(dragCurrentEndMin) : formatDisplayTime(ev.endDate)}
 											</div>
 											<!-- Hiển thị Phòng học / Địa điểm trong ô tuần -->
 											{#if ev.location}
@@ -904,15 +1027,15 @@
 											{/if}
 										</div>
 
-										<!-- Resize Handle -->
+										<!-- Resize Handle BOTTOM (Kéo cạnh dưới) -->
 										<div
 											role="slider"
-											aria-label="Kéo để chỉnh thời gian kết thúc"
+											aria-label="Kéo cạnh dưới để chỉnh giờ kết thúc"
 											aria-valuenow={st.durationMin || 60}
 											tabindex="0"
-											onmousedown={(e) => startResizing(ev, e)}
-											class="w-full h-2 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded transition-colors group-hover:opacity-100 opacity-40"
-											title="Kéo thả để điều chỉnh thời lượng"
+											onmousedown={(e) => handleStartResizeBottom(ev, e)}
+											class="w-full h-2 -mb-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-40 shrink-0"
+											title="Kéo cạnh dưới để chỉnh thời lượng"
 										>
 											<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
 										</div>
