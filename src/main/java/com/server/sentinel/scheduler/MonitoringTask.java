@@ -7,6 +7,8 @@ import com.server.sentinel.service.SystemService;
 import com.server.sentinel.service.AutoHealService;
 import com.server.sentinel.service.SystemStatsHistoryService;
 import com.server.sentinel.service.SettingsService;
+import com.server.sentinel.service.CalendarService;
+import com.server.sentinel.model.CalendarEventDto;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -25,6 +27,7 @@ public class MonitoringTask {
     private final AutoHealService autoHealService;
     private final SystemStatsHistoryService historyService;
     private final SettingsService settingsService;
+    private final CalendarService calendarService;
 
     // Quan ly trang thai de tranh spam thong bao
     private final Set<String> alertedContainers = ConcurrentHashMap.newKeySet();
@@ -39,13 +42,15 @@ public class MonitoringTask {
             DockerService dockerService,
             AutoHealService autoHealService,
             SystemStatsHistoryService historyService,
-            SettingsService settingsService) {
+            SettingsService settingsService,
+            CalendarService calendarService) {
         this.systemService = systemService;
         this.discordService = discordService;
         this.dockerService = dockerService;
         this.autoHealService = autoHealService;
         this.historyService = historyService;
         this.settingsService = settingsService;
+        this.calendarService = calendarService;
 
         // Khoi tao danh sach container da sap san tu truoc khi Sentinel chay de tranh spam
         try {
@@ -194,6 +199,24 @@ public class MonitoringTask {
             }
         } catch (Exception e) {
             System.err.println("Loi khi kiem tra Docker: " + e.getMessage());
+        }
+
+        // Kiem tra va gui nhac nho lich (Calendar Reminder)
+        try {
+            List<CalendarEventDto> dueReminders = calendarService.checkDueReminders();
+            for (CalendarEventDto ev : dueReminders) {
+                StringBuilder msg = new StringBuilder();
+                msg.append("[CALENDAR REMINDER] Nhắc nhở sự kiện sắp diễn ra:\n");
+                msg.append("- Tiêu đề: ").append(ev.getTitle()).append("\n");
+                msg.append("- Thời gian: ").append(ev.getStartDate()).append("\n");
+                if (ev.getDescription() != null && !ev.getDescription().trim().isEmpty()) {
+                    msg.append("- Ghi chú: ").append(ev.getDescription()).append("\n");
+                }
+                msg.append("- Nhắc trước: ").append(ev.getReminderMinutes()).append(" phút.");
+                discordService.sendAlert(msg.toString());
+            }
+        } catch (Exception e) {
+            System.err.println("Loi khi kiem tra nhac nho lich: " + e.getMessage());
         }
     }
 }

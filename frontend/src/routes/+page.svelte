@@ -15,6 +15,7 @@
 	import TransferQueueFloatingButton from '$lib/components/TransferQueueFloatingButton.svelte';
 	import HomeTab from '$lib/components/HomeTab.svelte';
 	import TerminalTab from '$lib/components/TerminalTab.svelte';
+	import CalendarTab from '$lib/components/CalendarTab.svelte';
 	import { transferQueue } from '$lib/stores/transferQueue.svelte';
 
 	const API_BASE = '/api';
@@ -312,6 +313,7 @@
 		if (activeTab === 'containers') return 'Quản lý Docker Containers';
 		if (activeTab === 'terminal') return 'Web Terminal & Shell Console';
 		if (activeTab === 'files') return 'Quản lý Tệp tin & Thư mục Hệ thống';
+		if (activeTab === 'calendar') return 'Lịch biểu & Lập lịch Công việc (Calendar)';
 		if (activeTab === 'settings') return 'Cấu hình Cảnh báo & Discord Bot';
 		return 'Bảng điều khiển & Giám sát Hệ thống';
 	});
@@ -494,6 +496,13 @@
 							onpreview={handleOpenFilePreview}
 							ondownload={handleDownloadFile}
 						/>
+					</section>
+				{/if}
+
+				<!-- TAB CONTENT: CALENDAR -->
+				{#if activeTab === 'calendar'}
+					<section class="space-y-6">
+						<CalendarTab apiBase={API_BASE} />
 					</section>
 				{/if}
 
