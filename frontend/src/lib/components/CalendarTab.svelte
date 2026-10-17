@@ -61,17 +61,15 @@
 	let showDeleteConfirm = $state(false);
 	let eventToDelete = $state<CalendarEvent | null>(null);
 
-	// --- Interactive Mouse Operation: Resize or Move ---
-	// Mode: null | 'resize-bottom' | 'resize-top' | 'move'
+	// --- Interactive Mouse & Touch Operation: Resize or Move ---
 	let activeDragMode = $state<'resize-bottom' | 'resize-top' | 'move' | null>(null);
 	let activeDragEvent = $state<CalendarEvent | null>(null);
 	let dragStartY = $state(0);
-	let dragStartX = $state(0);
 	let dragOriginStartMin = $state(0);
 	let dragOriginEndMin = $state(0);
 	let dragCurrentStartMin = $state(0);
 	let dragCurrentEndMin = $state(0);
-	let hasDraggedDistance = $state(false); // Ngăn trigger click mở modal khi vừa kéo thả xong
+	let hasDraggedDistance = $state(false);
 
 	const COLOR_OPTIONS = [
 		{ id: 'indigo', label: 'Xanh Chàm', bg: 'bg-indigo-600', border: 'border-indigo-500', text: 'text-indigo-400', badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
@@ -124,106 +122,114 @@
 		}
 	}
 
+	function handlePointerMove(clientY: number) {
+		if (!activeDragMode || !activeDragEvent) return;
+
+		const deltaY = clientY - dragStartY;
+		if (Math.abs(deltaY) > 5) {
+			hasDraggedDistance = true;
+		}
+
+		// 64px = 60 phút => bước nhảy (snap) 15 phút = 16px
+		const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15;
+
+		if (activeDragMode === 'resize-bottom') {
+			const newEnd = Math.max(dragOriginStartMin + 15, Math.min(23 * 60 + 59, dragOriginEndMin + deltaMinutes));
+			dragCurrentEndMin = newEnd;
+		} else if (activeDragMode === 'resize-top') {
+			const newStart = Math.min(dragOriginEndMin - 15, Math.max(0, dragOriginStartMin + deltaMinutes));
+			dragCurrentStartMin = newStart;
+		} else if (activeDragMode === 'move') {
+			const duration = dragOriginEndMin - dragOriginStartMin;
+			let newStart = dragOriginStartMin + deltaMinutes;
+			let newEnd = newStart + duration;
+
+			if (newStart < 0) {
+				newStart = 0;
+				newEnd = duration;
+			} else if (newEnd > 23 * 60 + 59) {
+				newEnd = 23 * 60 + 59;
+				newStart = newEnd - duration;
+			}
+
+			dragCurrentStartMin = newStart;
+			dragCurrentEndMin = newEnd;
+		}
+	}
+
+	async function handlePointerUp() {
+		if (!activeDragMode || !activeDragEvent) return;
+
+		const targetEvent = activeDragEvent;
+		const wasDragged = hasDraggedDistance;
+
+		activeDragMode = null;
+		activeDragEvent = null;
+
+		if (!wasDragged) {
+			return;
+		}
+
+		const newStartTimeStr = formatMinutesToTimeString(dragCurrentStartMin);
+		const newEndTimeStr = formatMinutesToTimeString(dragCurrentEndMin);
+
+		const startDatePart = targetEvent.startDate.substring(0, 10);
+		const endDatePart = targetEvent.endDate ? targetEvent.endDate.substring(0, 10) : startDatePart;
+
+		const updatedStartDate = `${startDatePart}T${newStartTimeStr}:00`;
+		const updatedEndDate = `${endDatePart}T${newEndTimeStr}:00`;
+
+		events = events.map((ev) =>
+			ev.id === targetEvent.id
+				? { ...ev, startDate: updatedStartDate, endDate: updatedEndDate }
+				: ev
+		);
+
+		try {
+			const res = await fetch(`${apiBase}/calendar/events/${targetEvent.id}`, {
+				method: 'PUT',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					...targetEvent,
+					startDate: updatedStartDate,
+					endDate: updatedEndDate
+				})
+			});
+			if (!res.ok) throw new Error('Không thể lưu thay đổi vị trí/thời lượng sự kiện.');
+			await fetchEvents();
+		} catch (err: any) {
+			alert(`Lỗi: ${err.message}`);
+			await fetchEvents();
+		} finally {
+			setTimeout(() => {
+				hasDraggedDistance = false;
+			}, 100);
+		}
+	}
+
 	onMount(() => {
 		fetchEvents();
 
-		const handleMouseMove = (e: MouseEvent) => {
-			if (!activeDragMode || !activeDragEvent) return;
+		const onMouseMove = (e: MouseEvent) => handlePointerMove(e.clientY);
+		const onMouseUp = () => handlePointerUp();
 
-			const deltaY = e.clientY - dragStartY;
-			if (Math.abs(deltaY) > 3) {
-				hasDraggedDistance = true;
-			}
-
-			// 64px = 60 phút => bước nhảy (snap) 15 phút = 16px
-			const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15;
-
-			if (activeDragMode === 'resize-bottom') {
-				// Kéo cạnh dưới: điều chỉnh giờ kết thúc (kéo lên hoặc kéo xuống)
-				const newEnd = Math.max(dragOriginStartMin + 15, Math.min(23 * 60 + 59, dragOriginEndMin + deltaMinutes));
-				dragCurrentEndMin = newEnd;
-			} else if (activeDragMode === 'resize-top') {
-				// Kéo cạnh trên: điều chỉnh giờ bắt đầu (kéo lên hoặc kéo xuống)
-				const newStart = Math.min(dragOriginEndMin - 15, Math.max(0, dragOriginStartMin + deltaMinutes));
-				dragCurrentStartMin = newStart;
-			} else if (activeDragMode === 'move') {
-				// Di chuyển toàn bộ khung thời gian của sự kiện
-				const duration = dragOriginEndMin - dragOriginStartMin;
-				let newStart = dragOriginStartMin + deltaMinutes;
-				let newEnd = newStart + duration;
-
-				if (newStart < 0) {
-					newStart = 0;
-					newEnd = duration;
-				} else if (newEnd > 23 * 60 + 59) {
-					newEnd = 23 * 60 + 59;
-					newStart = newEnd - duration;
-				}
-
-				dragCurrentStartMin = newStart;
-				dragCurrentEndMin = newEnd;
+		const onTouchMove = (e: TouchEvent) => {
+			if (activeDragMode && e.touches.length > 0) {
+				handlePointerMove(e.touches[0].clientY);
 			}
 		};
+		const onTouchEnd = () => handlePointerUp();
 
-		const handleMouseUp = async () => {
-			if (!activeDragMode || !activeDragEvent) return;
-
-			const targetEvent = activeDragEvent;
-			const mode = activeDragMode;
-			const wasDragged = hasDraggedDistance;
-
-			activeDragMode = null;
-			activeDragEvent = null;
-
-			if (!wasDragged) {
-				return;
-			}
-
-			const newStartTimeStr = formatMinutesToTimeString(dragCurrentStartMin);
-			const newEndTimeStr = formatMinutesToTimeString(dragCurrentEndMin);
-
-			const startDatePart = targetEvent.startDate.substring(0, 10);
-			const endDatePart = targetEvent.endDate ? targetEvent.endDate.substring(0, 10) : startDatePart;
-
-			const updatedStartDate = `${startDatePart}T${newStartTimeStr}:00`;
-			const updatedEndDate = `${endDatePart}T${newEndTimeStr}:00`;
-
-			// Optimistic local UI update
-			events = events.map((ev) =>
-				ev.id === targetEvent.id
-					? { ...ev, startDate: updatedStartDate, endDate: updatedEndDate }
-					: ev
-			);
-
-			try {
-				const res = await fetch(`${apiBase}/calendar/events/${targetEvent.id}`, {
-					method: 'PUT',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						...targetEvent,
-						startDate: updatedStartDate,
-						endDate: updatedEndDate
-					})
-				});
-				if (!res.ok) throw new Error('Không thể lưu thay đổi vị trí/thời lượng sự kiện.');
-				await fetchEvents();
-			} catch (err: any) {
-				alert(`Lỗi: ${err.message}`);
-				await fetchEvents();
-			} finally {
-				// Reset sau một khoảng ngắn để tránh event click của modal bắt dính
-				setTimeout(() => {
-					hasDraggedDistance = false;
-				}, 100);
-			}
-		};
-
-		window.addEventListener('mousemove', handleMouseMove);
-		window.addEventListener('mouseup', handleMouseUp);
+		window.addEventListener('mousemove', onMouseMove);
+		window.addEventListener('mouseup', onMouseUp);
+		window.addEventListener('touchmove', onTouchMove, { passive: true });
+		window.addEventListener('touchend', onTouchEnd);
 
 		return () => {
-			window.removeEventListener('mousemove', handleMouseMove);
-			window.removeEventListener('mouseup', handleMouseUp);
+			window.removeEventListener('mousemove', onMouseMove);
+			window.removeEventListener('mouseup', onMouseUp);
+			window.removeEventListener('touchmove', onTouchMove);
+			window.removeEventListener('touchend', onTouchEnd);
 		};
 	});
 
@@ -303,18 +309,16 @@
 			d.getFullYear() === today.getFullYear();
 	}
 
-	// Kiểm tra sự kiện có diễn ra vào dateStr hay không (hỗ trợ cả lặp lại tuần số tuần repeatWeeks)
+	// Kiểm tra sự kiện có diễn ra vào dateStr hay không
 	function isEventOnDate(ev: CalendarEvent, dateStr: string): boolean {
 		if (!ev.startDate) return false;
 		const evStart = ev.startDate.substring(0, 10);
 		const evEnd = ev.endDate ? ev.endDate.substring(0, 10) : evStart;
 
-		// 1. Kiểm tra dải ngày gốc
 		if (dateStr >= evStart && dateStr <= evEnd) {
 			return true;
 		}
 
-		// 2. Kiểm tra nếu có lặp lại hàng tuần
 		if (ev.recurrence === 'weekly' && dateStr > evStart) {
 			const startDateObj = new Date(evStart + 'T00:00:00');
 			const targetDateObj = new Date(dateStr + 'T00:00:00');
@@ -331,12 +335,10 @@
 			}
 		}
 
-		// 3. Hàng ngày
 		if (ev.recurrence === 'daily' && dateStr > evStart) {
 			return true;
 		}
 
-		// 4. Hàng tháng
 		if (ev.recurrence === 'monthly' && dateStr > evStart) {
 			const originalDay = parseInt(evStart.substring(8, 10), 10);
 			const targetDay = parseInt(dateStr.substring(8, 10), 10);
@@ -367,11 +369,9 @@
 		const firstDayOfMonth = new Date(year, month, 1);
 		const lastDayOfMonth = new Date(year, month + 1, 0);
 
-		// T2 là ngày bắt đầu tuần (1), CN là (0) -> T2=0, CN=6
 		let startingDay = firstDayOfMonth.getDay() - 1;
 		if (startingDay < 0) startingDay = 6;
 
-		// Ngày tháng trước
 		const prevMonthLastDay = new Date(year, month, 0).getDate();
 		for (let i = startingDay - 1; i >= 0; i--) {
 			const d = new Date(year, month - 1, prevMonthLastDay - i);
@@ -385,7 +385,6 @@
 			});
 		}
 
-		// Ngày trong tháng
 		for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
 			const d = new Date(year, month, day);
 			const dateStr = formatDateToYMD(d);
@@ -398,7 +397,6 @@
 			});
 		}
 
-		// Ngày tháng sau cho đủ 42 ô (6 tuần)
 		const remaining = 42 - days.length;
 		for (let day = 1; day <= remaining; day++) {
 			const d = new Date(year, month + 1, day);
@@ -430,7 +428,7 @@
 		const curr = new Date(currentDate);
 
 		let dayOfWeek = curr.getDay() - 1;
-		if (dayOfWeek < 0) dayOfWeek = 6; // CN = 6
+		if (dayOfWeek < 0) dayOfWeek = 6;
 
 		const monday = new Date(curr);
 		monday.setDate(curr.getDate() - dayOfWeek);
@@ -472,8 +470,8 @@
 		showEventModal = true;
 	}
 
-	function openEditModal(ev: CalendarEvent, e?: MouseEvent) {
-		if (hasDraggedDistance) return; // Nếu vừa kéo thả chuột thì không mở modal
+	function openEditModal(ev: CalendarEvent, e?: MouseEvent | TouchEvent) {
+		if (hasDraggedDistance) return;
 		if (e) {
 			e.stopPropagation();
 		}
@@ -585,8 +583,6 @@
 		return dateStr.substring(11, 16);
 	}
 
-	// Tính vị trí Top và Chiều cao (Height) của block sự kiện trong timeline 24 giờ
-	// Mỗi 1 giờ tương đương 64px (1 phút = 64/60 px)
 	function getEventTimelineStyle(ev: CalendarEvent, isBeingOperated = false) {
 		const HOUR_HEIGHT = 64; // px
 		if (ev.allDay || !ev.startDate.includes('T')) {
@@ -618,32 +614,10 @@
 		return { top, height, isAllDay: false, durationMin };
 	}
 
-	// Bắt đầu Kéo cạnh trên (Resize Top - chỉnh giờ bắt đầu)
-	function handleStartResizeTop(ev: CalendarEvent, e: MouseEvent) {
-		e.stopPropagation();
-		e.preventDefault();
-		initDragOperation(ev, 'resize-top', e);
-	}
-
-	// Bắt đầu Kéo cạnh dưới (Resize Bottom - chỉnh giờ kết thúc)
-	function handleStartResizeBottom(ev: CalendarEvent, e: MouseEvent) {
-		e.stopPropagation();
-		e.preventDefault();
-		initDragOperation(ev, 'resize-bottom', e);
-	}
-
-	// Bắt đầu Kéo thả toàn bộ thẻ để Di chuyển giờ (Move)
-	function handleStartMove(ev: CalendarEvent, e: MouseEvent) {
-		// Chỉ kích hoạt khi click chuột trái và không phải click vào nút bấm khác
-		if (e.button !== 0) return;
-		initDragOperation(ev, 'move', e);
-	}
-
-	function initDragOperation(ev: CalendarEvent, mode: 'resize-bottom' | 'resize-top' | 'move', e: MouseEvent) {
+	function initDragOperation(ev: CalendarEvent, mode: 'resize-bottom' | 'resize-top' | 'move', clientY: number) {
 		activeDragMode = mode;
 		activeDragEvent = ev;
-		dragStartY = e.clientY;
-		dragStartX = e.clientX;
+		dragStartY = clientY;
 		hasDraggedDistance = false;
 
 		const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
@@ -659,179 +633,215 @@
 		dragCurrentStartMin = dragOriginStartMin;
 		dragCurrentEndMin = dragOriginEndMin;
 	}
+
+	function handleStartResizeTop(ev: CalendarEvent, e: MouseEvent | TouchEvent) {
+		e.stopPropagation();
+		const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+		initDragOperation(ev, 'resize-top', clientY);
+	}
+
+	function handleStartResizeBottom(ev: CalendarEvent, e: MouseEvent | TouchEvent) {
+		e.stopPropagation();
+		const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+		initDragOperation(ev, 'resize-bottom', clientY);
+	}
+
+	function handleStartMove(ev: CalendarEvent, e: MouseEvent | TouchEvent) {
+		if ('button' in e && e.button !== 0) return;
+		const clientY = 'touches' in e ? e.touches[0].clientY : e.clientY;
+		initDragOperation(ev, 'move', clientY);
+	}
 </script>
 
-<div class="space-y-6 select-none">
+<div class="space-y-4 md:space-y-6 select-none pb-12">
 	<!-- TOP TOOLBAR -->
-	<div class="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-		<!-- Left: Navigation & Current Month/Week/Day -->
-		<div class="flex items-center gap-3">
-			<div class="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5" />
-				</svg>
+	<div class="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-2xl md:rounded-3xl p-3.5 md:p-5 shadow-2xl flex flex-col gap-3 md:gap-4">
+		<!-- Row 1: Title & Navigation Controls -->
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div class="flex items-center gap-2.5">
+				<div class="p-2 md:p-2.5 rounded-xl md:rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400 shrink-0">
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-5 h-5 md:w-6 md:h-6">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5" />
+					</svg>
+				</div>
+
+				<div class="min-w-0">
+					<h2 class="text-base sm:text-lg md:text-xl font-black text-white tracking-tight truncate">
+						{headerTitle}
+					</h2>
+					<p class="text-[10px] md:text-xs text-zinc-400 truncate">Lập lịch & Quản lý sự kiện, lịch học</p>
+				</div>
 			</div>
 
-			<div>
-				<h2 class="text-xl font-black text-white tracking-tight flex items-center gap-2">
-					{headerTitle}
-				</h2>
-				<p class="text-xs text-zinc-400">Lập lịch & Quản lý sự kiện, lịch học lưu trữ trực tiếp trên Server Sentinel</p>
-			</div>
+			<!-- Date Jump Buttons & Add Event on Mobile -->
+			<div class="flex items-center justify-between sm:justify-end gap-2">
+				<div class="flex items-center gap-1 bg-zinc-950/60 border border-zinc-800 rounded-xl p-0.5 md:p-1">
+					<button
+						onclick={prevPeriod}
+						class="p-1 md:p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+						title="Trước"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 md:w-4 md:h-4">
+							<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+						</svg>
+					</button>
+					<button
+						onclick={goToToday}
+						class="px-2 md:px-2.5 py-1 text-[11px] md:text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+					>
+						Hôm nay
+					</button>
+					<button
+						onclick={nextPeriod}
+						class="p-1 md:p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
+						title="Tiếp"
+					>
+						<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5 md:w-4 md:h-4">
+							<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
+						</svg>
+					</button>
+				</div>
 
-			<!-- Date Jump Buttons -->
-			<div class="flex items-center gap-1 ml-2 bg-zinc-950/60 border border-zinc-800 rounded-xl p-1">
+				<!-- Mobile Add Button -->
 				<button
-					onclick={prevPeriod}
-					class="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
-					title="Trước"
+					onclick={() => openCreateModal()}
+					class="sm:hidden px-3 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 text-white text-[11px] font-bold flex items-center gap-1.5 shadow-md shadow-indigo-950/50 cursor-pointer"
 				>
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-						<path stroke-linecap="round" stroke-linejoin="round" d="M15.75 19.5 8.25 12l7.5-7.5" />
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
 					</svg>
-				</button>
-				<button
-					onclick={goToToday}
-					class="px-2.5 py-1 text-xs font-bold text-zinc-300 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
-				>
-					Hôm nay
-				</button>
-				<button
-					onclick={nextPeriod}
-					class="p-1.5 text-zinc-400 hover:text-white hover:bg-zinc-800 rounded-lg transition-colors cursor-pointer"
-					title="Tiếp"
-				>
-					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-						<path stroke-linecap="round" stroke-linejoin="round" d="m8.25 4.5 7.5 7.5-7.5 7.5" />
-					</svg>
+					<span>Thêm</span>
 				</button>
 			</div>
 		</div>
 
-		<!-- Right: View switch, Search & Add button -->
-		<div class="flex items-center gap-3 flex-wrap">
-			<!-- Search Bar -->
-			<div class="relative">
-				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="Tìm sự kiện, phòng, địa điểm..."
-					class="bg-zinc-950/80 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40 sm:w-52"
-				/>
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5">
-					<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
-				</svg>
-			</div>
-
-			<!-- Category Filter -->
-			<select
-				bind:value={selectedCategoryFilter}
-				class="bg-zinc-950/80 border border-zinc-800 rounded-xl px-2.5 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-			>
-				<option value="All">Tất cả nhãn</option>
-				{#each CATEGORIES as cat}
-					<option value={cat}>{cat}</option>
-				{/each}
-			</select>
-
-			<!-- View Mode Switch: Ngày | Tuần | Tháng | Lịch trình -->
-			<div class="flex items-center p-1 bg-zinc-950/80 border border-zinc-800 rounded-xl">
+		<!-- Row 2: View switch (Horizontal Scroll on Mobile), Search & Filter -->
+		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 pt-2 border-t border-zinc-800/60">
+			<!-- View Mode Switch: Scrollable pills on mobile -->
+			<div class="flex items-center p-1 bg-zinc-950/80 border border-zinc-800 rounded-xl overflow-x-auto scrollbar-none w-full sm:w-auto shrink-0">
 				<button
 					onclick={() => (currentView = 'day')}
-					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'day' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+					class="flex-1 sm:flex-initial px-3 py-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-center whitespace-nowrap cursor-pointer {currentView === 'day' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
 				>
 					Ngày
 				</button>
 				<button
 					onclick={() => (currentView = 'week')}
-					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'week' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+					class="flex-1 sm:flex-initial px-3 py-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-center whitespace-nowrap cursor-pointer {currentView === 'week' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
 				>
 					Tuần
 				</button>
 				<button
 					onclick={() => (currentView = 'month')}
-					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'month' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+					class="flex-1 sm:flex-initial px-3 py-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-center whitespace-nowrap cursor-pointer {currentView === 'month' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
 				>
 					Tháng
 				</button>
 				<button
 					onclick={() => (currentView = 'agenda')}
-					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'agenda' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+					class="flex-1 sm:flex-initial px-3 py-1 text-[11px] md:text-xs font-bold rounded-lg transition-all text-center whitespace-nowrap cursor-pointer {currentView === 'agenda' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
 				>
 					Lịch trình
 				</button>
 			</div>
 
-			<!-- Create Event Button -->
-			<button
-				onclick={() => openCreateModal()}
-				class="px-4 py-2 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold flex items-center gap-2 shadow-lg shadow-indigo-950/50 cursor-pointer transition-all hover:scale-105 active:scale-95"
-			>
-				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-4 h-4">
-					<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-				</svg>
-				Tạo sự kiện
-			</button>
+			<!-- Search & Filter Controls -->
+			<div class="flex items-center gap-2 w-full sm:w-auto">
+				<!-- Search Bar -->
+				<div class="relative flex-1 sm:flex-initial">
+					<input
+						type="text"
+						bind:value={searchQuery}
+						placeholder="Tìm lịch, phòng, nơi..."
+						class="w-full sm:w-44 md:w-52 bg-zinc-950/80 border border-zinc-800 rounded-xl pl-8 pr-2.5 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+					/>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
+					</svg>
+				</div>
+
+				<!-- Category Filter -->
+				<select
+					bind:value={selectedCategoryFilter}
+					class="bg-zinc-950/80 border border-zinc-800 rounded-xl px-2 py-1.5 text-xs text-zinc-300 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer shrink-0"
+				>
+					<option value="All">Tất cả nhãn</option>
+					{#each CATEGORIES as cat}
+						<option value={cat}>{cat}</option>
+					{/each}
+				</select>
+
+				<!-- Desktop Add Button -->
+				<button
+					onclick={() => openCreateModal()}
+					class="hidden sm:flex px-3.5 py-1.5 rounded-xl bg-gradient-to-r from-indigo-600 to-violet-600 hover:from-indigo-500 hover:to-violet-500 text-white text-xs font-bold items-center gap-1.5 shadow-lg shadow-indigo-950/50 cursor-pointer transition-all hover:scale-105 active:scale-95 shrink-0"
+				>
+					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2.5" stroke="currentColor" class="w-3.5 h-3.5">
+						<path stroke-linecap="round" stroke-linejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
+					</svg>
+					Tạo sự kiện
+				</button>
+			</div>
 		</div>
 	</div>
 
 	<!-- MAIN CALENDAR CONTAINER -->
 	{#if isLoading && events.length === 0}
-		<div class="h-96 rounded-3xl bg-zinc-900/40 border border-zinc-800/80 flex flex-col items-center justify-center gap-3 text-zinc-400">
+		<div class="h-80 md:h-96 rounded-2xl md:rounded-3xl bg-zinc-900/40 border border-zinc-800/80 flex flex-col items-center justify-center gap-3 text-zinc-400">
 			<span class="w-8 h-8 rounded-full border-3 border-indigo-400 border-t-transparent animate-spin"></span>
 			<p class="text-xs font-medium">Đang tải dữ liệu lịch trình từ server...</p>
 		</div>
 	{:else if errorMessage}
-		<div class="p-4 rounded-2xl bg-rose-950/30 border border-rose-800/60 text-rose-300 text-xs flex items-center gap-2">
+		<div class="p-3.5 rounded-2xl bg-rose-950/30 border border-rose-800/60 text-rose-300 text-xs flex items-center gap-2">
 			<span>⚠️</span>
 			<span>{errorMessage}</span>
 		</div>
 	{:else if currentView === 'day'}
-		<!-- DAY VIEW: 24h Timeline with drag move & resize -->
+		<!-- DAY VIEW: 24h Timeline with drag move & resize (Touch + Mouse) -->
 		{@const todayStr = formatDateToYMD(currentDate)}
 		{@const dayEvents = getEventsForDate(todayStr)}
 		{@const allDayEvents = dayEvents.filter((e) => e.allDay || !e.startDate.includes('T'))}
 		{@const timedEvents = dayEvents.filter((e) => !e.allDay && e.startDate.includes('T'))}
 
-		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
 			<!-- Header for Day -->
-			<div class="p-4 border-b border-zinc-800 bg-zinc-950/50 flex items-center justify-between">
+			<div class="p-3.5 md:p-4 border-b border-zinc-800 bg-zinc-950/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2">
 				<div class="flex items-center gap-3">
 					<span class="text-2xl font-black {checkIfToday(currentDate) ? 'text-indigo-400' : 'text-white'}">
 						{currentDate.getDate()}
 					</span>
 					<div>
-						<h3 class="text-sm font-bold text-zinc-200">
+						<h3 class="text-xs md:text-sm font-bold text-zinc-200">
 							{currentDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
 						</h3>
-						<span class="text-[11px] text-zinc-500">
+						<span class="text-[10px] md:text-[11px] text-zinc-500">
 							{dayEvents.length} sự kiện được xếp lịch
 						</span>
 					</div>
 				</div>
 
-				<div class="text-xs text-zinc-400 flex items-center gap-3">
-					<span class="inline-flex items-center gap-1">✋ <b>Kéo giữa:</b> Di chuyển giờ</span>
-					<span class="inline-flex items-center gap-1">↕️ <b>Kéo cạnh trên/dưới:</b> Tăng/giảm thời lượng</span>
+				<div class="text-[10px] md:text-xs text-zinc-400 flex flex-wrap items-center gap-2 md:gap-3">
+					<span class="inline-flex items-center gap-1">✋ Giữ kéo: Đổi giờ</span>
+					<span class="inline-flex items-center gap-1">↕️ Kéo 2 đầu: Đổi thời lượng</span>
 				</div>
 			</div>
 
-			<!-- All Day Section (if any) -->
+			<!-- All Day Section -->
 			{#if allDayEvents.length > 0}
-				<div class="px-6 py-2 border-b border-zinc-800/80 bg-zinc-950/30 flex items-center gap-3">
-					<span class="text-[11px] font-bold text-zinc-500 w-16 uppercase">Cả ngày</span>
-					<div class="flex flex-wrap gap-2 flex-1">
+				<div class="px-3.5 md:px-6 py-2 border-b border-zinc-800/80 bg-zinc-950/30 flex items-center gap-2 md:gap-3">
+					<span class="text-[10px] md:text-[11px] font-bold text-zinc-500 w-12 md:w-16 uppercase shrink-0">Cả ngày</span>
+					<div class="flex flex-wrap gap-1.5 md:gap-2 flex-1">
 						{#each allDayEvents as ev (ev.id)}
 							{@const cfg = getColorConfig(ev.color)}
 							<button
 								type="button"
 								onclick={(e) => openEditModal(ev, e)}
-								class="px-3 py-1 rounded-lg text-xs font-bold border transition-all hover:scale-105 {cfg.badge} flex items-center gap-1.5"
+								class="px-2 md:px-3 py-1 rounded-lg text-[11px] md:text-xs font-bold border transition-all hover:scale-105 {cfg.badge} flex items-center gap-1.5"
 							>
-								<span class="w-2 h-2 rounded-full {cfg.bg}"></span>
-								<span>{ev.title}</span>
+								<span class="w-1.5 h-1.5 rounded-full {cfg.bg}"></span>
+								<span class="truncate max-w-[120px] sm:max-w-none">{ev.title}</span>
 								{#if ev.location}
-									<span class="text-[10px] px-1.5 py-0.2 rounded bg-black/40 font-mono text-zinc-300">
+									<span class="text-[9px] md:text-[10px] px-1 md:px-1.5 py-0.2 rounded bg-black/40 font-mono text-zinc-300">
 										{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
 									</span>
 								{/if}
@@ -842,7 +852,7 @@
 			{/if}
 
 			<!-- 24-Hour Scrollable Grid -->
-			<div class="relative h-[650px] overflow-y-auto divide-y divide-zinc-800/30">
+			<div class="relative h-[550px] md:h-[650px] overflow-y-auto divide-y divide-zinc-800/30">
 				{#each HOURS_OF_DAY as hour}
 					<div
 						role="button"
@@ -852,7 +862,7 @@
 						class="h-16 flex border-b border-zinc-800/30 hover:bg-zinc-800/10 transition-colors group cursor-pointer relative"
 					>
 						<!-- Hour Label -->
-						<div class="w-16 shrink-0 text-right pr-3 pt-1 text-[11px] font-mono font-medium text-zinc-500 border-r border-zinc-800/50">
+						<div class="w-12 md:w-16 shrink-0 text-right pr-2 md:pr-3 pt-1 text-[10px] md:text-[11px] font-mono font-medium text-zinc-500 border-r border-zinc-800/50">
 							{String(hour).padStart(2, '0')}:00
 						</div>
 						<!-- Empty Hour Slot -->
@@ -865,7 +875,7 @@
 				{/each}
 
 				<!-- Positioned Events Overlay -->
-				<div class="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+				<div class="absolute top-0 left-12 md:left-16 right-0 bottom-0 pointer-events-none">
 					{#each timedEvents as ev (ev.id)}
 						{@const isBeingOperated = activeDragEvent?.id === ev.id}
 						{@const st = getEventTimelineStyle(ev, isBeingOperated)}
@@ -874,58 +884,60 @@
 							role="button"
 							tabindex="0"
 							onmousedown={(e) => handleStartMove(ev, e)}
+							ontouchstart={(e) => handleStartMove(ev, e)}
 							onclick={(e) => openEditModal(ev, e)}
 							onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
 							style="top: {st.top}px; height: {st.height}px;"
-							class="absolute left-2 right-4 rounded-xl border p-2 shadow-lg backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
+							class="absolute left-1.5 md:left-2 right-2 md:right-4 rounded-xl border p-1.5 md:p-2 shadow-lg backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
 						>
-							<!-- Resize Handle TOP (Kéo cạnh trên) -->
+							<!-- Resize Handle TOP -->
 							<div
 								role="slider"
 								aria-label="Kéo cạnh trên để chỉnh giờ bắt đầu"
 								aria-valuenow={st.durationMin || 60}
 								tabindex="0"
 								onmousedown={(e) => handleStartResizeTop(ev, e)}
-								class="w-full h-2.5 -mt-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors group-hover:opacity-100 opacity-40 shrink-0"
+								ontouchstart={(e) => handleStartResizeTop(ev, e)}
+								class="w-full h-3 -mt-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors opacity-60 shrink-0 touch-none"
 								title="Kéo cạnh trên để chỉnh giờ bắt đầu"
 							>
 								<div class="w-8 h-1 bg-white/60 rounded-full"></div>
 							</div>
 
-							<!-- Content Middle (Kéo để di chuyển) -->
-							<div class="flex items-start justify-between gap-2 my-auto pointer-events-none">
+							<!-- Content Middle -->
+							<div class="flex items-start justify-between gap-1.5 md:gap-2 my-auto pointer-events-none">
 								<div class="space-y-0.5 min-w-0">
 									<div class="flex items-center gap-1.5 font-bold text-xs flex-wrap">
 										<span class="w-2 h-2 rounded-full {cfg.bg} shrink-0"></span>
-										<span class="truncate text-white font-extrabold">{ev.title}</span>
-										<span class="text-[10px] opacity-80 font-mono">
+										<span class="truncate text-white font-extrabold text-[11px] md:text-xs">{ev.title}</span>
+										<span class="text-[9px] md:text-[10px] opacity-80 font-mono">
 											({isBeingOperated ? formatMinutesToTimeString(dragCurrentStartMin) : formatDisplayTime(ev.startDate)} - {isBeingOperated ? formatMinutesToTimeString(dragCurrentEndMin) : formatDisplayTime(ev.endDate)})
 										</span>
-										<!-- PHÒNG HỌC / ĐỊA ĐIỂM NỔI BẬT -->
 										{#if ev.location}
-											<span class="px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200 border border-white/10'}">
-												{ev.category === 'Lịch học' ? `🏫 Phòng: ${ev.location}` : `📍 ${ev.location}`}
+											<span class="px-1.5 md:px-2 py-0.2 md:py-0.5 rounded-md text-[9px] md:text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200 border border-white/10'}">
+												{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
 											</span>
 										{/if}
 									</div>
 									{#if ev.description}
-										<p class="text-[11px] text-zinc-300 line-clamp-1">{ev.description}</p>
+										<p class="text-[10px] md:text-[11px] text-zinc-300 line-clamp-1">{ev.description}</p>
 									{/if}
 								</div>
 
-								<span class="text-[10px] px-1.5 py-0.5 rounded bg-black/30 font-semibold text-zinc-200 shrink-0">
+								<span class="text-[9px] md:text-[10px] px-1 md:px-1.5 py-0.2 rounded bg-black/30 font-semibold text-zinc-200 shrink-0 hidden sm:inline">
 									{ev.category}
 								</span>
 							</div>
 
-							<!-- Resize Handle BOTTOM (Kéo cạnh dưới) -->
+							<!-- Resize Handle BOTTOM -->
 							<div
 								role="slider"
 								aria-label="Kéo cạnh dưới để chỉnh giờ kết thúc"
 								aria-valuenow={st.durationMin || 60}
 								tabindex="0"
 								onmousedown={(e) => handleStartResizeBottom(ev, e)}
-								class="w-full h-2.5 -mb-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-60 shrink-0"
+								ontouchstart={(e) => handleStartResizeBottom(ev, e)}
+								class="w-full h-3 -mb-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors opacity-60 shrink-0 touch-none"
 								title="Kéo cạnh dưới để chỉnh giờ kết thúc"
 							>
 								<div class="w-8 h-1 bg-white/60 rounded-full"></div>
@@ -936,122 +948,128 @@
 			</div>
 		</div>
 	{:else if currentView === 'week'}
-		<!-- WEEK VIEW: 7 Columns with 24 Hours -->
-		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
-			<!-- Weekday Headers -->
-			<div class="grid grid-cols-8 border-b border-zinc-800/80 bg-zinc-950/50 text-center py-3 text-xs font-bold divide-x divide-zinc-800/50">
-				<div class="text-zinc-500 font-mono text-[11px] flex items-center justify-center">
-					Giờ
-				</div>
-				{#each weekDays as day}
-					<div class="py-1 space-y-1">
-						<span class="text-zinc-400 uppercase text-[10px] block">{day.dayName}</span>
-						<span class="inline-flex w-7 h-7 items-center justify-center rounded-full font-bold {day.isToday ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-200'}">
-							{day.date.getDate()}
-						</span>
-					</div>
-				{/each}
-			</div>
-
-			<!-- Week 24h Grid -->
-			<div class="relative h-[650px] overflow-y-auto">
-				<div class="grid grid-cols-8 divide-x divide-zinc-800/40">
-					<!-- Hours Column -->
-					<div class="divide-y divide-zinc-800/30">
-						{#each HOURS_OF_DAY as hour}
-							<div class="h-16 text-right pr-2 pt-1 text-[11px] font-mono font-medium text-zinc-500">
-								{String(hour).padStart(2, '0')}:00
+		<!-- WEEK VIEW: Scrollable horizontal on mobile with 7 columns -->
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+			<div class="overflow-x-auto scrollbar-none">
+				<div class="min-w-[650px] md:min-w-full">
+					<!-- Weekday Headers -->
+					<div class="grid grid-cols-8 border-b border-zinc-800/80 bg-zinc-950/50 text-center py-2.5 md:py-3 text-xs font-bold divide-x divide-zinc-800/50">
+						<div class="text-zinc-500 font-mono text-[10px] md:text-[11px] flex items-center justify-center">
+							Giờ
+						</div>
+						{#each weekDays as day}
+							<div class="py-1 space-y-0.5 md:space-y-1">
+								<span class="text-zinc-400 uppercase text-[9px] md:text-[10px] block">{day.dayName}</span>
+								<span class="inline-flex w-6 h-6 md:w-7 md:h-7 items-center justify-center rounded-full font-bold text-xs md:text-sm {day.isToday ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-200'}">
+									{day.date.getDate()}
+								</span>
 							</div>
 						{/each}
 					</div>
 
-					<!-- 7 Days Columns -->
-					{#each weekDays as day}
-						{@const timedDayEvents = day.events.filter((e) => !e.allDay && e.startDate.includes('T'))}
-						<div class="relative divide-y divide-zinc-800/30">
-							{#each HOURS_OF_DAY as hour}
-								<div
-									role="button"
-									tabindex="0"
-									onclick={() => openCreateModal(day.dateStr, hour)}
-									onkeydown={(e) => { if (e.key === 'Enter') openCreateModal(day.dateStr, hour); }}
-									class="h-16 hover:bg-zinc-800/10 transition-colors cursor-pointer"
-								></div>
-							{/each}
-
-							<!-- Positioned Events inside day column -->
-							<div class="absolute inset-0 pointer-events-none">
-								{#each timedDayEvents as ev (ev.id)}
-									{@const isBeingOperated = activeDragEvent?.id === ev.id}
-									{@const st = getEventTimelineStyle(ev, isBeingOperated)}
-									{@const cfg = getColorConfig(ev.color)}
-									<div
-										role="button"
-										tabindex="0"
-										onmousedown={(e) => handleStartMove(ev, e)}
-										onclick={(e) => openEditModal(ev, e)}
-										onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
-										style="top: {st.top}px; height: {st.height}px;"
-										class="absolute left-1 right-1 rounded-lg border p-1 shadow-md backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
-										title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})${ev.location ? ' - ' + ev.location : ''}`}
-									>
-										<!-- Resize Handle TOP (Kéo cạnh trên) -->
-										<div
-											role="slider"
-											aria-label="Kéo cạnh trên để chỉnh giờ bắt đầu"
-											aria-valuenow={st.durationMin || 60}
-											tabindex="0"
-											onmousedown={(e) => handleStartResizeTop(ev, e)}
-											class="w-full h-2 -mt-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors group-hover:opacity-100 opacity-40 shrink-0"
-											title="Kéo cạnh trên để chỉnh giờ bắt đầu"
-										>
-											<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
-										</div>
-
-										<!-- Middle Content (Kéo để di chuyển) -->
-										<div class="space-y-0.5 my-auto pointer-events-none">
-											<div class="flex items-center gap-1 font-bold text-[11px] truncate">
-												<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
-												<span class="truncate text-white font-extrabold">{ev.title}</span>
-											</div>
-											<div class="text-[9px] opacity-80 font-mono truncate">
-												{isBeingOperated ? formatMinutesToTimeString(dragCurrentStartMin) : formatDisplayTime(ev.startDate)} - {isBeingOperated ? formatMinutesToTimeString(dragCurrentEndMin) : formatDisplayTime(ev.endDate)}
-											</div>
-											<!-- Hiển thị Phòng học / Địa điểm trong ô tuần -->
-											{#if ev.location}
-												<div class="mt-0.5">
-													<span class="inline-block max-w-full truncate px-1 py-0.2 rounded text-[9px] font-bold {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200'}">
-														{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
-													</span>
-												</div>
-											{/if}
-										</div>
-
-										<!-- Resize Handle BOTTOM (Kéo cạnh dưới) -->
-										<div
-											role="slider"
-											aria-label="Kéo cạnh dưới để chỉnh giờ kết thúc"
-											aria-valuenow={st.durationMin || 60}
-											tabindex="0"
-											onmousedown={(e) => handleStartResizeBottom(ev, e)}
-											class="w-full h-2 -mb-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-40 shrink-0"
-											title="Kéo cạnh dưới để chỉnh thời lượng"
-										>
-											<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
-										</div>
+					<!-- Week 24h Grid -->
+					<div class="relative h-[550px] md:h-[650px] overflow-y-auto">
+						<div class="grid grid-cols-8 divide-x divide-zinc-800/40">
+							<!-- Hours Column -->
+							<div class="divide-y divide-zinc-800/30">
+								{#each HOURS_OF_DAY as hour}
+									<div class="h-16 text-right pr-2 pt-1 text-[10px] md:text-[11px] font-mono font-medium text-zinc-500">
+										{String(hour).padStart(2, '0')}:00
 									</div>
 								{/each}
 							</div>
+
+							<!-- 7 Days Columns -->
+							{#each weekDays as day}
+								{@const timedDayEvents = day.events.filter((e) => !e.allDay && e.startDate.includes('T'))}
+								<div class="relative divide-y divide-zinc-800/30">
+									{#each HOURS_OF_DAY as hour}
+										<div
+											role="button"
+											tabindex="0"
+											onclick={() => openCreateModal(day.dateStr, hour)}
+											onkeydown={(e) => { if (e.key === 'Enter') openCreateModal(day.dateStr, hour); }}
+											class="h-16 hover:bg-zinc-800/10 transition-colors cursor-pointer"
+										></div>
+									{/each}
+
+									<!-- Positioned Events inside day column -->
+									<div class="absolute inset-0 pointer-events-none">
+										{#each timedDayEvents as ev (ev.id)}
+											{@const isBeingOperated = activeDragEvent?.id === ev.id}
+											{@const st = getEventTimelineStyle(ev, isBeingOperated)}
+											{@const cfg = getColorConfig(ev.color)}
+											<div
+												role="button"
+												tabindex="0"
+												onmousedown={(e) => handleStartMove(ev, e)}
+												ontouchstart={(e) => handleStartMove(ev, e)}
+												onclick={(e) => openEditModal(ev, e)}
+												onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
+												style="top: {st.top}px; height: {st.height}px;"
+												class="absolute left-1 right-1 rounded-lg border p-1 shadow-md backdrop-blur-md transition-[border-color,background-color] pointer-events-auto flex flex-col justify-between overflow-hidden group hover:ring-2 hover:ring-white/40 cursor-grab active:cursor-grabbing {cfg.badge} {isBeingOperated ? 'ring-2 ring-indigo-400 shadow-2xl opacity-90 z-20' : 'z-10'}"
+												title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})${ev.location ? ' - ' + ev.location : ''}`}
+											>
+												<!-- Resize Handle TOP -->
+												<div
+													role="slider"
+													aria-label="Kéo cạnh trên để chỉnh giờ bắt đầu"
+													aria-valuenow={st.durationMin || 60}
+													tabindex="0"
+													onmousedown={(e) => handleStartResizeTop(ev, e)}
+													ontouchstart={(e) => handleStartResizeTop(ev, e)}
+													class="w-full h-2 -mt-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-t transition-colors opacity-40 shrink-0 touch-none"
+													title="Kéo cạnh trên để chỉnh giờ bắt đầu"
+												>
+													<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
+												</div>
+
+												<!-- Middle Content -->
+												<div class="space-y-0.5 my-auto pointer-events-none">
+													<div class="flex items-center gap-1 font-bold text-[10px] md:text-[11px] truncate">
+														<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
+														<span class="truncate text-white font-extrabold">{ev.title}</span>
+													</div>
+													<div class="text-[8px] md:text-[9px] opacity-80 font-mono truncate">
+														{isBeingOperated ? formatMinutesToTimeString(dragCurrentStartMin) : formatDisplayTime(ev.startDate)} - {isBeingOperated ? formatMinutesToTimeString(dragCurrentEndMin) : formatDisplayTime(ev.endDate)}
+													</div>
+													{#if ev.location}
+														<div class="mt-0.5">
+															<span class="inline-block max-w-full truncate px-1 py-0.2 rounded text-[8px] md:text-[9px] font-bold {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200'}">
+																{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
+															</span>
+														</div>
+													{/if}
+												</div>
+
+												<!-- Resize Handle BOTTOM -->
+												<div
+													role="slider"
+													aria-label="Kéo cạnh dưới để chỉnh giờ kết thúc"
+													aria-valuenow={st.durationMin || 60}
+													tabindex="0"
+													onmousedown={(e) => handleStartResizeBottom(ev, e)}
+													ontouchstart={(e) => handleStartResizeBottom(ev, e)}
+													class="w-full h-2 -mb-0.5 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors opacity-40 shrink-0 touch-none"
+													title="Kéo cạnh dưới để chỉnh thời lượng"
+												>
+													<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
+												</div>
+											</div>
+										{/each}
+									</div>
+								</div>
+							{/each}
 						</div>
-					{/each}
+					</div>
 				</div>
 			</div>
 		</div>
 	{:else if currentView === 'month'}
-		<!-- MONTH VIEW: Google Calendar Style Grid -->
-		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+		<!-- MONTH VIEW: Responsive Grid (Dots on Mobile, Full Badge on Desktop) -->
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl md:rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
 			<!-- Weekday Headers -->
-			<div class="grid grid-cols-7 border-b border-zinc-800/80 text-center py-2.5 bg-zinc-950/50 text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
+			<div class="grid grid-cols-7 border-b border-zinc-800/80 text-center py-2 md:py-2.5 bg-zinc-950/50 text-[10px] md:text-[11px] font-bold text-zinc-400 uppercase tracking-wider">
 				<div>T2</div>
 				<div>T3</div>
 				<div>T4</div>
@@ -1062,31 +1080,47 @@
 			</div>
 
 			<!-- Days Grid (6 rows x 7 columns = 42 cells) -->
-			<div class="grid grid-cols-7 grid-rows-6 divide-x divide-y divide-zinc-800/50 min-h-[680px]">
+			<div class="grid grid-cols-7 grid-rows-6 divide-x divide-y divide-zinc-800/50 min-h-[460px] md:min-h-[680px]">
 				{#each monthDays as day}
 					<div
 						role="button"
 						tabindex="0"
 						onclick={() => openCreateModal(day.dateStr)}
 						onkeydown={(e) => { if (e.key === 'Enter') openCreateModal(day.dateStr); }}
-						class="p-2 min-h-[110px] flex flex-col justify-between transition-colors cursor-pointer group hover:bg-zinc-800/20 {day.isCurrentMonth ? 'bg-zinc-900/20' : 'bg-zinc-950/40 opacity-40'}"
+						class="p-1 md:p-2 min-h-[75px] md:min-h-[110px] flex flex-col justify-between transition-colors cursor-pointer group hover:bg-zinc-800/20 {day.isCurrentMonth ? 'bg-zinc-900/20' : 'bg-zinc-950/40 opacity-40'}"
 					>
 						<!-- Day Number Header -->
 						<div class="flex items-center justify-between">
 							<span
-								class="text-xs font-bold w-6 h-6 flex items-center justify-center rounded-full transition-transform group-hover:scale-110 {day.isToday ? 'bg-indigo-600 text-white font-extrabold shadow-md shadow-indigo-900' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}"
+								class="text-[11px] md:text-xs font-bold w-5 h-5 md:w-6 md:h-6 flex items-center justify-center rounded-full transition-transform group-hover:scale-110 {day.isToday ? 'bg-indigo-600 text-white font-extrabold shadow-md shadow-indigo-900' : day.isCurrentMonth ? 'text-zinc-300' : 'text-zinc-600'}"
 							>
 								{day.date.getDate()}
 							</span>
 							{#if day.events.length > 0}
-								<span class="text-[10px] font-mono text-zinc-500 font-semibold">
+								<span class="text-[9px] md:text-[10px] font-mono text-zinc-500 font-semibold">
 									{day.events.length}
 								</span>
 							{/if}
 						</div>
 
-						<!-- Events In This Day -->
-						<div class="space-y-1 mt-1.5 flex-1 overflow-y-auto max-h-[75px] scrollbar-none">
+						<!-- Events: Mobile Dots View (<sm) -->
+						<div class="flex sm:hidden flex-wrap gap-1 mt-1">
+							{#each day.events.slice(0, 4) as ev (ev.id)}
+								{@const cfg = getColorConfig(ev.color)}
+								<button
+									type="button"
+									onclick={(e) => openEditModal(ev, e)}
+									class="w-2 h-2 rounded-full {cfg.bg} shadow-sm"
+									title={ev.title}
+								></button>
+							{/each}
+							{#if day.events.length > 4}
+								<span class="text-[8px] text-zinc-500 font-bold">+{day.events.length - 4}</span>
+							{/if}
+						</div>
+
+						<!-- Events: Desktop Detailed Badges (>=sm) -->
+						<div class="hidden sm:block space-y-1 mt-1.5 flex-1 overflow-y-auto max-h-[75px] scrollbar-none">
 							{#each day.events.slice(0, 3) as ev (ev.id)}
 								{@const cfg = getColorConfig(ev.color)}
 								<button
@@ -1115,16 +1149,16 @@
 			</div>
 		</div>
 	{:else}
-		<!-- AGENDA / SCHEDULE VIEW -->
-		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl p-6 shadow-2xl backdrop-blur-xl space-y-4">
+		<!-- AGENDA / SCHEDULE VIEW (Mobile friendly list) -->
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-2xl md:rounded-3xl p-4 md:p-6 shadow-2xl backdrop-blur-xl space-y-4">
 			<div class="flex items-center justify-between pb-3 border-b border-zinc-800/60">
-				<h3 class="text-sm font-bold text-zinc-300 flex items-center gap-2">
+				<h3 class="text-xs md:text-sm font-bold text-zinc-300 flex items-center gap-2">
 					<span>Danh sách sự kiện sắp tới ({filteredEvents.length})</span>
 				</h3>
 			</div>
 
 			{#if filteredEvents.length === 0}
-				<div class="p-12 text-center text-zinc-500 space-y-2">
+				<div class="p-8 md:p-12 text-center text-zinc-500 space-y-2">
 					<div class="text-3xl">📅</div>
 					<p class="text-xs">Chưa có sự kiện nào trong danh sách hoặc không khớp với bộ lọc.</p>
 					<button
@@ -1138,46 +1172,37 @@
 				<div class="divide-y divide-zinc-800/60">
 					{#each filteredEvents as ev (ev.id)}
 						{@const cfg = getColorConfig(ev.color)}
-						<div class="py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-800/20 px-3 rounded-2xl transition-colors group">
-							<div class="flex items-start gap-3">
+						<div class="py-3 md:py-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 hover:bg-zinc-800/20 px-2.5 md:px-3 rounded-2xl transition-colors group">
+							<div class="flex items-start gap-2.5 md:gap-3 min-w-0">
 								<div class="w-3 h-3 rounded-full {cfg.bg} mt-1 shrink-0 shadow-sm"></div>
-								<div class="space-y-1">
-									<div class="flex items-center gap-2 flex-wrap">
-										<h4 class="text-sm font-bold text-zinc-100 group-hover:text-indigo-300 transition-colors">
+								<div class="space-y-1 min-w-0">
+									<div class="flex items-center gap-1.5 md:gap-2 flex-wrap">
+										<h4 class="text-xs md:text-sm font-bold text-zinc-100 group-hover:text-indigo-300 transition-colors">
 											{ev.title}
 										</h4>
-										<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold border {cfg.badge}">
+										<span class="px-2 py-0.5 rounded-lg text-[9px] md:text-[10px] font-semibold border {cfg.badge}">
 											{ev.category}
 										</span>
-										<!-- Location or Classroom badge in Agenda -->
 										{#if ev.location}
-											<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-zinc-800 text-zinc-200 border border-zinc-700'}">
-												{ev.category === 'Lịch học' ? `🏫 Phòng học: ${ev.location}` : `📍 Địa điểm: ${ev.location}`}
+											<span class="px-2 py-0.5 rounded-lg text-[9px] md:text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-zinc-800 text-zinc-200 border border-zinc-700'}">
+												{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
 											</span>
 										{/if}
 										{#if ev.recurrence === 'weekly'}
-											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
-												🔁 Lặp {ev.repeatWeeks || 1} tuần
-											</span>
-										{:else if ev.recurrence === 'daily'}
-											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
-												🔁 Hàng ngày
-											</span>
-										{:else if ev.recurrence === 'monthly'}
-											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
-												🔁 Hàng tháng
+											<span class="px-2 py-0.5 rounded-lg text-[9px] md:text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
+												🔁 {ev.repeatWeeks || 1} tuần
 											</span>
 										{/if}
 										{#if ev.reminderMinutes > 0}
-											<span class="text-[10px] text-zinc-400 flex items-center gap-1 font-mono">
-												🔔 Nhắc trước {ev.reminderMinutes}p
+											<span class="text-[9px] md:text-[10px] text-zinc-400 flex items-center gap-1 font-mono">
+												🔔 {ev.reminderMinutes}p
 											</span>
 										{/if}
 									</div>
 									{#if ev.description}
-										<p class="text-xs text-zinc-400 line-clamp-2">{ev.description}</p>
+										<p class="text-[11px] md:text-xs text-zinc-400 line-clamp-2">{ev.description}</p>
 									{/if}
-									<div class="text-[11px] text-zinc-500 font-mono flex items-center gap-2">
+									<div class="text-[10px] md:text-[11px] text-zinc-500 font-mono flex items-center gap-2">
 										<span>📅 {ev.startDate.substring(0, 10)}</span>
 										{#if !ev.allDay && ev.startDate.includes('T')}
 											<span>⏰ {formatDisplayTime(ev.startDate)} - {formatDisplayTime(ev.endDate)}</span>
@@ -1192,7 +1217,7 @@
 							<div class="flex items-center gap-2 self-end sm:self-center shrink-0">
 								<button
 									onclick={() => openEditModal(ev)}
-									class="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold cursor-pointer transition-all"
+									class="px-2.5 py-1 md:px-3 md:py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-300 hover:text-white text-xs font-semibold cursor-pointer transition-all"
 								>
 									Sửa
 								</button>
@@ -1201,7 +1226,7 @@
 										eventToDelete = ev;
 										showDeleteConfirm = true;
 									}}
-									class="p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
+									class="p-1 md:p-1.5 text-zinc-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-all cursor-pointer"
 									title="Xóa sự kiện"
 								>
 									<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
@@ -1217,24 +1242,24 @@
 	{/if}
 </div>
 
-<!-- MODAL: TẠO / SỬA SỰ KIỆN -->
+<!-- MODAL: TẠO / SỬA SỰ KIỆN (Mobile Bottom Sheet / Desktop Modal) -->
 {#if showEventModal}
-	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
-		<div class="bg-zinc-900 border border-zinc-800 rounded-3xl p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[90vh] overflow-y-auto">
+	<div class="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-md animate-fadeIn">
+		<div class="bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-3xl p-5 md:p-6 w-full max-w-lg space-y-4 shadow-2xl max-h-[92vh] overflow-y-auto">
 			<div class="flex items-center justify-between pb-3 border-b border-zinc-800/80">
-				<h3 class="text-base font-extrabold text-white flex items-center gap-2">
+				<h3 class="text-sm md:text-base font-extrabold text-white flex items-center gap-2">
 					<span class="w-3 h-3 rounded-full {getColorConfig(modalColor).bg}"></span>
 					{isEditing ? 'Chỉnh sửa sự kiện' : 'Thêm sự kiện mới'}
 				</h3>
 				<button
 					onclick={() => (showEventModal = false)}
-					class="p-1 text-zinc-500 hover:text-white rounded-lg hover:bg-zinc-800 cursor-pointer"
+					class="p-1.5 text-zinc-500 hover:text-white rounded-lg hover:bg-zinc-800 cursor-pointer"
 				>
 					✕
 				</button>
 			</div>
 
-			<form onsubmit={handleSaveEvent} class="space-y-4 text-xs">
+			<form onsubmit={handleSaveEvent} class="space-y-3.5 text-xs">
 				<!-- Title -->
 				<div>
 					<label for="event-title-input" class="block text-zinc-400 font-semibold mb-1">Tiêu đề sự kiện *</label>
@@ -1244,7 +1269,7 @@
 						bind:value={modalTitle}
 						placeholder={modalCategory === 'Lịch học' ? 'Ví dụ: Giải tích 1, Cơ sở dữ liệu, Lập trình Mạng...' : 'Ví dụ: Họp dự án, Backup database, Bảo trì server...'}
 						required
-						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
+						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-xs md:text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
 					/>
 				</div>
 
@@ -1252,7 +1277,7 @@
 				<div class="flex items-center justify-between p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80">
 					<div>
 						<span class="font-bold text-zinc-200">Sự kiện cả ngày</span>
-						<p class="text-[11px] text-zinc-500">Không cần chỉ định giờ phút chi tiết</p>
+						<p class="text-[10px] md:text-[11px] text-zinc-500">Không cần chỉ định giờ phút chi tiết</p>
 					</div>
 					<input
 						type="checkbox"
@@ -1270,13 +1295,13 @@
 							type="date"
 							bind:value={modalStartDate}
 							required
-							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
 						/>
 						{#if !modalAllDay}
 							<input
 								type="time"
 								bind:value={modalStartTime}
-								class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-2"
+								class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-2 text-xs"
 							/>
 						{/if}
 					</div>
@@ -1287,13 +1312,13 @@
 							id="event-end-date"
 							type="date"
 							bind:value={modalEndDate}
-							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
 						/>
 						{#if !modalAllDay}
 							<input
 								type="time"
 								bind:value={modalEndTime}
-								class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-2"
+								class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 mt-2 text-xs"
 							/>
 						{/if}
 					</div>
@@ -1306,7 +1331,7 @@
 						<select
 							id="event-category-select"
 							bind:value={modalCategory}
-							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer text-xs"
 						>
 							{#each CATEGORIES as cat}
 								<option value={cat}>{cat}</option>
@@ -1314,7 +1339,6 @@
 						</select>
 					</div>
 
-					<!-- Location Input: Tự động đổi nhãn và placeholder nếu là Lịch học -->
 					<div>
 						<label for="event-location-input" class="block text-zinc-400 font-semibold mb-1">
 							{modalCategory === 'Lịch học' ? '🏫 Phòng học' : '📍 Địa điểm'}
@@ -1323,8 +1347,8 @@
 							id="event-location-input"
 							type="text"
 							bind:value={modalLocation}
-							placeholder={modalCategory === 'Lịch học' ? 'Ví dụ: P.302-A2, Giảng đường C, Lab 4...' : 'Ví dụ: Phòng họp 1, Tòa nhà B, Google Meet...'}
-							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							placeholder={modalCategory === 'Lịch học' ? 'Ví dụ: P.302-A2, Lab 4...' : 'Ví dụ: Phòng họp 1, Tòa B...'}
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 text-xs"
 						/>
 					</div>
 				</div>
@@ -1351,7 +1375,7 @@
 						<div class="flex items-center justify-between pt-2 border-t border-zinc-800/60">
 							<div>
 								<span class="font-semibold text-zinc-200">Số tuần lặp lại</span>
-								<p class="text-[11px] text-zinc-500">Sự kiện/Lịch học sẽ tự động lặp trong bao nhiêu tuần tới</p>
+								<p class="text-[10px] md:text-[11px] text-zinc-500">Lặp trong bao nhiêu tuần tới</p>
 							</div>
 							<div class="flex items-center gap-2">
 								<input
@@ -1370,12 +1394,12 @@
 				<!-- Color selection -->
 				<div>
 					<span class="block text-zinc-400 font-semibold mb-1">Màu sắc sự kiện</span>
-					<div class="flex items-center gap-2 pt-1">
+					<div class="flex items-center gap-2 pt-1 overflow-x-auto scrollbar-none pb-1">
 						{#each COLOR_OPTIONS as c}
 							<button
 								type="button"
 								onclick={() => (modalColor = c.id)}
-								class="w-6 h-6 rounded-full {c.bg} transition-transform cursor-pointer {modalColor === c.id ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'}"
+								class="w-7 h-7 rounded-full {c.bg} transition-transform cursor-pointer shrink-0 {modalColor === c.id ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'}"
 								title={c.label}
 							></button>
 						{/each}
@@ -1386,7 +1410,7 @@
 				<div class="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-1">
 					<div class="flex items-center justify-between">
 						<label for="event-reminder-select" class="font-bold text-zinc-300 flex items-center gap-1.5">
-							<span>🔔 Nhắc nhở qua Discord Bot</span>
+							<span>🔔 Nhắc qua Discord Bot</span>
 						</label>
 						<select
 							id="event-reminder-select"
@@ -1402,7 +1426,7 @@
 							<option value={1440}>Trước 1 ngày</option>
 						</select>
 					</div>
-					<p class="text-[10px] text-zinc-500">Sentinel sẽ tự động gửi thông báo qua Discord kèm Địa điểm / Phòng học trước khi bắt đầu.</p>
+					<p class="text-[10px] text-zinc-500">Sentinel sẽ tự động gửi thông báo qua Discord trước khi bắt đầu.</p>
 				</div>
 
 				<!-- Description -->
@@ -1411,9 +1435,9 @@
 					<textarea
 						id="event-description-input"
 						bind:value={modalDescription}
-						rows="3"
-						placeholder="Thêm mô tả, giáo viên phụ trách, tài liệu học tập hoặc việc cần làm..."
-						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
+						rows="2"
+						placeholder="Thêm mô tả, giáo viên, tài liệu hoặc việc cần làm..."
+						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none text-xs"
 					></textarea>
 				</div>
 
@@ -1426,9 +1450,9 @@
 								eventToDelete = events.find((e) => e.id === modalId) || null;
 								showDeleteConfirm = true;
 							}}
-							class="px-3.5 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
+							class="px-3 py-2 rounded-xl text-xs font-bold text-rose-400 hover:bg-rose-500/10 transition-colors cursor-pointer"
 						>
-							Xóa sự kiện
+							Xóa
 						</button>
 					{:else}
 						<div></div>
@@ -1459,9 +1483,9 @@
 <!-- MODAL: CONFIRM DELETE -->
 {#if showDeleteConfirm && eventToDelete}
 	<div class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/75 backdrop-blur-md animate-fadeIn">
-		<div class="bg-zinc-900 border border-rose-900/60 rounded-3xl p-6 w-full max-w-sm space-y-4 shadow-2xl">
+		<div class="bg-zinc-900 border border-rose-900/60 rounded-3xl p-5 md:p-6 w-full max-w-sm space-y-4 shadow-2xl">
 			<div class="flex items-center gap-3">
-				<div class="p-2.5 rounded-xl bg-rose-500/10 text-rose-400">
+				<div class="p-2.5 rounded-xl bg-rose-500/10 text-rose-400 shrink-0">
 					<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
 						<path stroke-linecap="round" stroke-linejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
 					</svg>
