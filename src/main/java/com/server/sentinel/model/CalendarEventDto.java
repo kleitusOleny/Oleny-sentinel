@@ -8,7 +8,8 @@ public class CalendarEventDto {
     private String endDate;   // ISO string: YYYY-MM-DD or YYYY-MM-DDTHH:mm:ss
     private boolean allDay;
     private String color;     // e.g. "blue", "indigo", "emerald", "amber", "rose", "purple"
-    private String category;  // e.g. "Work", "Server", "Meeting", "Personal", "Reminder"
+    private String category;  // e.g. "Work", "Server", "Meeting", "Personal", "Reminder", "Lịch học"
+    private String location;  // Địa điểm hoặc Phòng học (đối với Lịch học)
     private int reminderMinutes; // e.g. 0 (none), 5, 10, 15, 30, 60
     private String recurrence; // "none", "daily", "weekly", "monthly"
     private int repeatWeeks;   // Số tuần lặp lại nếu recurrence là weekly (mặc định 1)
@@ -19,7 +20,7 @@ public class CalendarEventDto {
     }
 
     public CalendarEventDto(String id, String title, String description, String startDate, String endDate,
-                            boolean allDay, String color, String category, int reminderMinutes,
+                            boolean allDay, String color, String category, String location, int reminderMinutes,
                             String recurrence, int repeatWeeks, boolean notified, long createdAt) {
         this.id = id;
         this.title = title;
@@ -29,6 +30,7 @@ public class CalendarEventDto {
         this.allDay = allDay;
         this.color = color;
         this.category = category;
+        this.location = location;
         this.reminderMinutes = reminderMinutes;
         this.recurrence = recurrence;
         this.repeatWeeks = repeatWeeks > 0 ? repeatWeeks : 1;
@@ -98,6 +100,14 @@ public class CalendarEventDto {
 
     public void setCategory(String category) {
         this.category = category;
+    }
+
+    public String getLocation() {
+        return location;
+    }
+
+    public void setLocation(String location) {
+        this.location = location;
     }
 
     public int getReminderMinutes() {

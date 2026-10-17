@@ -209,6 +209,10 @@ public class MonitoringTask {
                 msg.append("[CALENDAR REMINDER] Nhắc nhở sự kiện sắp diễn ra:\n");
                 msg.append("- Tiêu đề: ").append(ev.getTitle()).append("\n");
                 msg.append("- Thời gian: ").append(ev.getStartDate()).append("\n");
+                if (ev.getLocation() != null && !ev.getLocation().trim().isEmpty()) {
+                    String locLabel = "Lịch học".equalsIgnoreCase(ev.getCategory()) ? "Phòng học: " : "Địa điểm: ";
+                    msg.append("- ").append(locLabel).append(ev.getLocation()).append("\n");
+                }
                 if (ev.getDescription() != null && !ev.getDescription().trim().isEmpty()) {
                     msg.append("- Ghi chú: ").append(ev.getDescription()).append("\n");
                 }

@@ -10,6 +10,7 @@
 		allDay: boolean;
 		color: string;
 		category: string;
+		location?: string; // Địa điểm hoặc Phòng học (nếu là Lịch học)
 		reminderMinutes: number;
 		recurrence: string; // "none", "daily", "weekly", "monthly"
 		repeatWeeks?: number; // Số tuần lặp lại nếu recurrence là weekly
@@ -49,7 +50,8 @@
 	let modalEndTime = $state('10:00');
 	let modalAllDay = $state(false);
 	let modalColor = $state('indigo');
-	let modalCategory = $state('Công việc');
+	let modalCategory = $state('Lịch học');
+	let modalLocation = $state('');
 	let modalReminder = $state(15);
 	let modalRecurrence = $state('none');
 	let modalRepeatWeeks = $state(1);
@@ -76,7 +78,7 @@
 		{ id: 'cyan', label: 'Xanh Ngọc', bg: 'bg-cyan-600', border: 'border-cyan-500', text: 'text-cyan-400', badge: 'bg-cyan-500/15 text-cyan-300 border-cyan-500/30' }
 	];
 
-	const CATEGORIES = ['Công việc', 'Server', 'Họp', 'Cá nhân', 'Deadline', 'Bảo trì'];
+	const CATEGORIES = ['Lịch học', 'Công việc', 'Họp', 'Server', 'Cá nhân', 'Deadline', 'Bảo trì'];
 
 	const HOURS_OF_DAY = Array.from({ length: 24 }, (_, i) => i);
 
@@ -123,8 +125,8 @@
 		const handleMouseMove = (e: MouseEvent) => {
 			if (!isResizing || !resizingEvent) return;
 			const deltaY = e.clientY - resizeStartY;
-			// 64px = 60 phút => deltaMinutes = (deltaY / 64) * 60
-			const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15; // snap 15 phút
+			// 64px = 60 phút => snap 15 phút
+			const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15;
 			const startMin = parseMinutesFromTimeString(formatDisplayTime(resizingEvent.startDate));
 			const newEndMin = Math.max(startMin + 15, Math.min(23 * 60 + 59, resizeOriginalEndMin + deltaMinutes));
 			resizeCurrentEndMin = newEndMin;
@@ -232,7 +234,8 @@
 				const matchTitle = (ev.title || '').toLowerCase().includes(q);
 				const matchDesc = (ev.description || '').toLowerCase().includes(q);
 				const matchCat = (ev.category || '').toLowerCase().includes(q);
-				if (!matchTitle && !matchDesc && !matchCat) return false;
+				const matchLoc = (ev.location || '').toLowerCase().includes(q);
+				if (!matchTitle && !matchDesc && !matchCat && !matchLoc) return false;
 			}
 			return true;
 		});
@@ -407,7 +410,8 @@
 		modalEndTime = `${String(Math.min(23, defaultHour + 1)).padStart(2, '0')}:00`;
 		modalAllDay = false;
 		modalColor = 'indigo';
-		modalCategory = 'Công việc';
+		modalCategory = 'Lịch học';
+		modalLocation = '';
 		modalReminder = 15;
 		modalRecurrence = 'none';
 		modalRepeatWeeks = 1;
@@ -443,7 +447,8 @@
 		}
 
 		modalColor = ev.color || 'indigo';
-		modalCategory = ev.category || 'Công việc';
+		modalCategory = ev.category || 'Lịch học';
+		modalLocation = ev.location || '';
 		modalReminder = ev.reminderMinutes ?? 15;
 		modalRecurrence = ev.recurrence || 'none';
 		modalRepeatWeeks = ev.repeatWeeks && ev.repeatWeeks > 0 ? ev.repeatWeeks : 1;
@@ -472,6 +477,7 @@
 			allDay: modalAllDay,
 			color: modalColor,
 			category: modalCategory,
+			location: modalLocation.trim(),
 			reminderMinutes: Number(modalReminder),
 			recurrence: modalRecurrence,
 			repeatWeeks: modalRecurrence === 'weekly' ? Number(modalRepeatWeeks) : 1
@@ -529,7 +535,7 @@
 	function getEventTimelineStyle(ev: CalendarEvent, isBeingResized = false) {
 		const HOUR_HEIGHT = 64; // px
 		if (ev.allDay || !ev.startDate.includes('T')) {
-			return { top: 0, height: 28, isAllDay: true };
+			return { top: 0, height: 32, isAllDay: true };
 		}
 
 		const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
@@ -578,7 +584,7 @@
 				<h2 class="text-xl font-black text-white tracking-tight flex items-center gap-2">
 					{headerTitle}
 				</h2>
-				<p class="text-xs text-zinc-400">Lập lịch & Quản lý sự kiện lưu trữ trực tiếp trên Server Sentinel</p>
+				<p class="text-xs text-zinc-400">Lập lịch & Quản lý sự kiện, lịch học lưu trữ trực tiếp trên Server Sentinel</p>
 			</div>
 
 			<!-- Date Jump Buttons -->
@@ -617,8 +623,8 @@
 				<input
 					type="text"
 					bind:value={searchQuery}
-					placeholder="Tìm sự kiện..."
-					class="bg-zinc-950/80 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-36 sm:w-44"
+					placeholder="Tìm sự kiện, phòng, địa điểm..."
+					class="bg-zinc-950/80 border border-zinc-800 rounded-xl pl-8 pr-3 py-1.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 w-40 sm:w-52"
 				/>
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-3.5 h-3.5 text-zinc-500 absolute left-2.5 top-2.5">
 					<path stroke-linecap="round" stroke-linejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.637 10.636Z" />
@@ -731,6 +737,11 @@
 							>
 								<span class="w-2 h-2 rounded-full {cfg.bg}"></span>
 								<span>{ev.title}</span>
+								{#if ev.location}
+									<span class="text-[10px] px-1.5 py-0.2 rounded bg-black/40 font-mono text-zinc-300">
+										{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
+									</span>
+								{/if}
 							</button>
 						{/each}
 					</div>
@@ -775,20 +786,26 @@
 							class="absolute left-2 right-4 rounded-xl border p-2 shadow-lg backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
 						>
 							<div class="flex items-start justify-between gap-2">
-								<div class="space-y-0.5">
-									<div class="flex items-center gap-1.5 font-bold text-xs">
-										<span class="w-2 h-2 rounded-full {cfg.bg}"></span>
-										<span class="truncate text-white">{ev.title}</span>
+								<div class="space-y-0.5 min-w-0">
+									<div class="flex items-center gap-1.5 font-bold text-xs flex-wrap">
+										<span class="w-2 h-2 rounded-full {cfg.bg} shrink-0"></span>
+										<span class="truncate text-white font-extrabold">{ev.title}</span>
 										<span class="text-[10px] opacity-75 font-mono">
 											({formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)})
 										</span>
+										<!-- PHÒNG HỌC / ĐỊA ĐIỂM NỔI BẬT -->
+										{#if ev.location}
+											<span class="px-2 py-0.5 rounded-md text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200 border border-white/10'}">
+												{ev.category === 'Lịch học' ? `🏫 Phòng: ${ev.location}` : `📍 ${ev.location}`}
+											</span>
+										{/if}
 									</div>
 									{#if ev.description}
 										<p class="text-[11px] text-zinc-300 line-clamp-1">{ev.description}</p>
 									{/if}
 								</div>
 
-								<span class="text-[10px] px-1.5 py-0.5 rounded bg-black/30 font-semibold text-zinc-200">
+								<span class="text-[10px] px-1.5 py-0.5 rounded bg-black/30 font-semibold text-zinc-200 shrink-0">
 									{ev.category}
 								</span>
 							</div>
@@ -866,17 +883,25 @@
 										onclick={(e) => openEditModal(ev, e)}
 										onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
 										style="top: {st.top}px; height: {st.height}px;"
-										class="absolute left-1 right-1 rounded-lg border p-1 shadow-md backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
-										title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})`}
+										class="absolute left-1 right-1 rounded-lg border p-1.5 shadow-md backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
+										title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})${ev.location ? ' - ' + ev.location : ''}`}
 									>
-										<div>
+										<div class="space-y-0.5">
 											<div class="flex items-center gap-1 font-bold text-[11px] truncate">
 												<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
-												<span class="truncate text-white">{ev.title}</span>
+												<span class="truncate text-white font-extrabold">{ev.title}</span>
 											</div>
 											<div class="text-[9px] opacity-75 font-mono truncate">
 												{formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)}
 											</div>
+											<!-- Hiển thị Phòng học / Địa điểm trong ô tuần -->
+											{#if ev.location}
+												<div class="mt-0.5">
+													<span class="inline-block max-w-full truncate px-1 py-0.2 rounded text-[9px] font-bold {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/40 text-zinc-200'}">
+														{ev.category === 'Lịch học' ? `🏫 ${ev.location}` : `📍 ${ev.location}`}
+													</span>
+												</div>
+											{/if}
 										</div>
 
 										<!-- Resize Handle -->
@@ -945,10 +970,15 @@
 									type="button"
 									onclick={(e) => openEditModal(ev, e)}
 									class="w-full text-left px-2 py-0.5 rounded-md text-[10px] font-semibold truncate border transition-all hover:scale-[1.02] shadow-sm flex items-center gap-1.5 {cfg.badge}"
-									title={`${ev.title} (${ev.allDay ? 'Cả ngày' : formatDisplayTime(ev.startDate)})`}
+									title={`${ev.title} (${ev.allDay ? 'Cả ngày' : formatDisplayTime(ev.startDate)})${ev.location ? ' - ' + (ev.category === 'Lịch học' ? 'Phòng ' : '') + ev.location : ''}`}
 								>
 									<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
-									<span class="truncate">{ev.title}</span>
+									<span class="truncate flex-1">{ev.title}</span>
+									{#if ev.location}
+										<span class="shrink-0 px-1 py-0.2 rounded text-[8px] font-bold {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-black/30 text-zinc-300'}">
+											{ev.category === 'Lịch học' ? `P: ${ev.location}` : ev.location}
+										</span>
+									{/if}
 								</button>
 							{/each}
 							{#if day.events.length > 3}
@@ -996,6 +1026,12 @@
 										<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold border {cfg.badge}">
 											{ev.category}
 										</span>
+										<!-- Location or Classroom badge in Agenda -->
+										{#if ev.location}
+											<span class="px-2 py-0.5 rounded-lg text-[10px] font-bold shadow-sm {ev.category === 'Lịch học' ? 'bg-amber-400 text-zinc-950 font-black' : 'bg-zinc-800 text-zinc-200 border border-zinc-700'}">
+												{ev.category === 'Lịch học' ? `🏫 Phòng học: ${ev.location}` : `📍 Địa điểm: ${ev.location}`}
+											</span>
+										{/if}
 										{#if ev.recurrence === 'weekly'}
 											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
 												🔁 Lặp {ev.repeatWeeks || 1} tuần
@@ -1083,7 +1119,7 @@
 						id="event-title-input"
 						type="text"
 						bind:value={modalTitle}
-						placeholder="Ví dụ: Họp dự án, Backup database, Bảo trì server..."
+						placeholder={modalCategory === 'Lịch học' ? 'Ví dụ: Giải tích 1, Cơ sở dữ liệu, Lập trình Mạng...' : 'Ví dụ: Họp dự án, Backup database, Bảo trì server...'}
 						required
 						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2.5 text-sm text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500"
 					/>
@@ -1140,6 +1176,36 @@
 					</div>
 				</div>
 
+				<!-- Category & Location / Classroom -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+					<div>
+						<label for="event-category-select" class="block text-zinc-400 font-semibold mb-1">Nhãn / Phân loại</label>
+						<select
+							id="event-category-select"
+							bind:value={modalCategory}
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
+						>
+							{#each CATEGORIES as cat}
+								<option value={cat}>{cat}</option>
+							{/each}
+						</select>
+					</div>
+
+					<!-- Location Input: Tự động đổi nhãn và placeholder nếu là Lịch học -->
+					<div>
+						<label for="event-location-input" class="block text-zinc-400 font-semibold mb-1">
+							{modalCategory === 'Lịch học' ? '🏫 Phòng học' : '📍 Địa điểm'}
+						</label>
+						<input
+							id="event-location-input"
+							type="text"
+							bind:value={modalLocation}
+							placeholder={modalCategory === 'Lịch học' ? 'Ví dụ: P.302-A2, Giảng đường C, Lab 4...' : 'Ví dụ: Phòng họp 1, Tòa nhà B, Google Meet...'}
+							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500"
+						/>
+					</div>
+				</div>
+
 				<!-- Recurrence & Repeat Weeks Option -->
 				<div class="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-3">
 					<div class="flex items-center justify-between">
@@ -1162,7 +1228,7 @@
 						<div class="flex items-center justify-between pt-2 border-t border-zinc-800/60">
 							<div>
 								<span class="font-semibold text-zinc-200">Số tuần lặp lại</span>
-								<p class="text-[11px] text-zinc-500">Sự kiện sẽ tự động lặp trong bao nhiêu tuần tới</p>
+								<p class="text-[11px] text-zinc-500">Sự kiện/Lịch học sẽ tự động lặp trong bao nhiêu tuần tới</p>
 							</div>
 							<div class="flex items-center gap-2">
 								<input
@@ -1178,33 +1244,18 @@
 					{/if}
 				</div>
 
-				<!-- Category & Color -->
-				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-					<div>
-						<label for="event-category-select" class="block text-zinc-400 font-semibold mb-1">Nhãn / Phân loại</label>
-						<select
-							id="event-category-select"
-							bind:value={modalCategory}
-							class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3 py-2 text-zinc-100 focus:outline-none focus:ring-1 focus:ring-indigo-500 cursor-pointer"
-						>
-							{#each CATEGORIES as cat}
-								<option value={cat}>{cat}</option>
-							{/each}
-						</select>
-					</div>
-
-					<div>
-						<span class="block text-zinc-400 font-semibold mb-1">Màu sắc sự kiện</span>
-						<div class="flex items-center gap-2 pt-1">
-							{#each COLOR_OPTIONS as c}
-								<button
-									type="button"
-									onclick={() => (modalColor = c.id)}
-									class="w-6 h-6 rounded-full {c.bg} transition-transform cursor-pointer {modalColor === c.id ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'}"
-									title={c.label}
-								></button>
-							{/each}
-						</div>
+				<!-- Color selection -->
+				<div>
+					<span class="block text-zinc-400 font-semibold mb-1">Màu sắc sự kiện</span>
+					<div class="flex items-center gap-2 pt-1">
+						{#each COLOR_OPTIONS as c}
+							<button
+								type="button"
+								onclick={() => (modalColor = c.id)}
+								class="w-6 h-6 rounded-full {c.bg} transition-transform cursor-pointer {modalColor === c.id ? 'scale-125 ring-2 ring-white' : 'opacity-70 hover:opacity-100'}"
+								title={c.label}
+							></button>
+						{/each}
 					</div>
 				</div>
 
@@ -1228,7 +1279,7 @@
 							<option value={1440}>Trước 1 ngày</option>
 						</select>
 					</div>
-					<p class="text-[10px] text-zinc-500">Sentinel sẽ tự động gửi thông báo qua Discord trước khi sự kiện bắt đầu.</p>
+					<p class="text-[10px] text-zinc-500">Sentinel sẽ tự động gửi thông báo qua Discord kèm Địa điểm / Phòng học trước khi bắt đầu.</p>
 				</div>
 
 				<!-- Description -->
@@ -1238,7 +1289,7 @@
 						id="event-description-input"
 						bind:value={modalDescription}
 						rows="3"
-						placeholder="Thêm mô tả, link cuộc họp, lệnh server hoặc danh sách công việc cần làm..."
+						placeholder="Thêm mô tả, giáo viên phụ trách, tài liệu học tập hoặc việc cần làm..."
 						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
 					></textarea>
 				</div>

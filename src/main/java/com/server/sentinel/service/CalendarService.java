@@ -114,6 +114,7 @@ public class CalendarService {
         existing.setAllDay(dto.isAllDay());
         existing.setColor(dto.getColor() != null ? dto.getColor() : existing.getColor());
         existing.setCategory(dto.getCategory() != null ? dto.getCategory() : existing.getCategory());
+        existing.setLocation(dto.getLocation());
         existing.setReminderMinutes(dto.getReminderMinutes());
         existing.setRecurrence(dto.getRecurrence() != null ? dto.getRecurrence() : "none");
         existing.setRepeatWeeks(dto.getRepeatWeeks() > 0 ? dto.getRepeatWeeks() : 1);
