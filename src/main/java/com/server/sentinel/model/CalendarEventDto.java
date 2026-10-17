@@ -11,6 +11,7 @@ public class CalendarEventDto {
     private String category;  // e.g. "Work", "Server", "Meeting", "Personal", "Reminder"
     private int reminderMinutes; // e.g. 0 (none), 5, 10, 15, 30, 60
     private String recurrence; // "none", "daily", "weekly", "monthly"
+    private int repeatWeeks;   // Số tuần lặp lại nếu recurrence là weekly (mặc định 1)
     private boolean notified; // flag to prevent duplicate notification
     private long createdAt;
 
@@ -19,7 +20,7 @@ public class CalendarEventDto {
 
     public CalendarEventDto(String id, String title, String description, String startDate, String endDate,
                             boolean allDay, String color, String category, int reminderMinutes,
-                            String recurrence, boolean notified, long createdAt) {
+                            String recurrence, int repeatWeeks, boolean notified, long createdAt) {
         this.id = id;
         this.title = title;
         this.description = description;
@@ -30,6 +31,7 @@ public class CalendarEventDto {
         this.category = category;
         this.reminderMinutes = reminderMinutes;
         this.recurrence = recurrence;
+        this.repeatWeeks = repeatWeeks > 0 ? repeatWeeks : 1;
         this.notified = notified;
         this.createdAt = createdAt;
     }
@@ -112,6 +114,14 @@ public class CalendarEventDto {
 
     public void setRecurrence(String recurrence) {
         this.recurrence = recurrence;
+    }
+
+    public int getRepeatWeeks() {
+        return repeatWeeks;
+    }
+
+    public void setRepeatWeeks(int repeatWeeks) {
+        this.repeatWeeks = repeatWeeks;
     }
 
     public boolean isNotified() {

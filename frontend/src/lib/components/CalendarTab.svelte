@@ -11,7 +11,8 @@
 		color: string;
 		category: string;
 		reminderMinutes: number;
-		recurrence: string;
+		recurrence: string; // "none", "daily", "weekly", "monthly"
+		repeatWeeks?: number; // Số tuần lặp lại nếu recurrence là weekly
 		createdAt?: number;
 	}
 
@@ -51,11 +52,19 @@
 	let modalCategory = $state('Công việc');
 	let modalReminder = $state(15);
 	let modalRecurrence = $state('none');
+	let modalRepeatWeeks = $state(1);
 	let isSaving = $state(false);
 
 	// Modal: Delete confirmation
 	let showDeleteConfirm = $state(false);
 	let eventToDelete = $state<CalendarEvent | null>(null);
+
+	// Drag to resize / adjust duration in Day & Week views
+	let isResizing = $state(false);
+	let resizingEvent = $state<CalendarEvent | null>(null);
+	let resizeStartY = $state(0);
+	let resizeOriginalEndMin = $state(0);
+	let resizeCurrentEndMin = $state(0);
 
 	const COLOR_OPTIONS = [
 		{ id: 'indigo', label: 'Xanh Chàm', bg: 'bg-indigo-600', border: 'border-indigo-500', text: 'text-indigo-400', badge: 'bg-indigo-500/15 text-indigo-300 border-indigo-500/30' },
@@ -69,6 +78,8 @@
 
 	const CATEGORIES = ['Công việc', 'Server', 'Họp', 'Cá nhân', 'Deadline', 'Bảo trì'];
 
+	const HOURS_OF_DAY = Array.from({ length: 24 }, (_, i) => i);
+
 	function getColorConfig(colorId: string) {
 		return COLOR_OPTIONS.find((c) => c.id === colorId) || COLOR_OPTIONS[0];
 	}
@@ -78,6 +89,18 @@
 		const month = String(d.getMonth() + 1).padStart(2, '0');
 		const day = String(d.getDate()).padStart(2, '0');
 		return `${year}-${month}-${day}`;
+	}
+
+	function parseMinutesFromTimeString(timeStr: string): number {
+		const [h, m] = timeStr.split(':').map(Number);
+		return (h || 0) * 60 + (m || 0);
+	}
+
+	function formatMinutesToTimeString(totalMinutes: number): string {
+		const clamped = Math.max(0, Math.min(23 * 60 + 59, Math.round(totalMinutes)));
+		const h = Math.floor(clamped / 60);
+		const m = clamped % 60;
+		return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`;
 	}
 
 	async function fetchEvents() {
@@ -96,6 +119,55 @@
 
 	onMount(() => {
 		fetchEvents();
+
+		const handleMouseMove = (e: MouseEvent) => {
+			if (!isResizing || !resizingEvent) return;
+			const deltaY = e.clientY - resizeStartY;
+			// 64px = 60 phút => deltaMinutes = (deltaY / 64) * 60
+			const deltaMinutes = Math.round(((deltaY / 64) * 60) / 15) * 15; // snap 15 phút
+			const startMin = parseMinutesFromTimeString(formatDisplayTime(resizingEvent.startDate));
+			const newEndMin = Math.max(startMin + 15, Math.min(23 * 60 + 59, resizeOriginalEndMin + deltaMinutes));
+			resizeCurrentEndMin = newEndMin;
+		};
+
+		const handleMouseUp = async () => {
+			if (!isResizing || !resizingEvent) return;
+			const targetEvent = resizingEvent;
+			const finalEndMin = resizeCurrentEndMin;
+			isResizing = false;
+			resizingEvent = null;
+
+			const newEndTimeStr = formatMinutesToTimeString(finalEndMin);
+			const baseDate = targetEvent.endDate ? targetEvent.endDate.substring(0, 10) : targetEvent.startDate.substring(0, 10);
+			const updatedEndDate = `${baseDate}T${newEndTimeStr}:00`;
+
+			// Optimistic update
+			events = events.map((ev) => (ev.id === targetEvent.id ? { ...ev, endDate: updatedEndDate } : ev));
+
+			try {
+				const res = await fetch(`${apiBase}/calendar/events/${targetEvent.id}`, {
+					method: 'PUT',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						...targetEvent,
+						endDate: updatedEndDate
+					})
+				});
+				if (!res.ok) throw new Error('Không thể lưu thay đổi độ dài sự kiện.');
+				await fetchEvents();
+			} catch (err: any) {
+				alert(`Lỗi: ${err.message}`);
+				await fetchEvents();
+			}
+		};
+
+		window.addEventListener('mousemove', handleMouseMove);
+		window.addEventListener('mouseup', handleMouseUp);
+
+		return () => {
+			window.removeEventListener('mousemove', handleMouseMove);
+			window.removeEventListener('mouseup', handleMouseUp);
+		};
 	});
 
 	// --- Navigation Helpers ---
@@ -135,7 +207,16 @@
 		const m = monthNames[currentDate.getMonth()];
 		const y = currentDate.getFullYear();
 		if (currentView === 'day') {
-			return `${currentDate.getDate()} ${m}, ${y}`;
+			const dayNames = ['Chủ Nhật', 'Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy'];
+			return `${dayNames[currentDate.getDay()]}, ${currentDate.getDate()} ${m}, ${y}`;
+		}
+		if (currentView === 'week') {
+			const weekDaysList = weekDays;
+			if (weekDaysList.length > 0) {
+				const start = weekDaysList[0].date;
+				const end = weekDaysList[6].date;
+				return `${start.getDate()} ${monthNames[start.getMonth()]} - ${end.getDate()} ${monthNames[end.getMonth()]}, ${y}`;
+			}
 		}
 		return `${m} năm ${y}`;
 	});
@@ -157,6 +238,61 @@
 		});
 	});
 
+	function checkIfToday(d: Date): boolean {
+		const today = new Date();
+		return d.getDate() === today.getDate() &&
+			d.getMonth() === today.getMonth() &&
+			d.getFullYear() === today.getFullYear();
+	}
+
+	// Kiểm tra sự kiện có diễn ra vào dateStr hay không (hỗ trợ cả lặp lại tuần số tuần repeatWeeks)
+	function isEventOnDate(ev: CalendarEvent, dateStr: string): boolean {
+		if (!ev.startDate) return false;
+		const evStart = ev.startDate.substring(0, 10);
+		const evEnd = ev.endDate ? ev.endDate.substring(0, 10) : evStart;
+
+		// 1. Kiểm tra dải ngày gốc
+		if (dateStr >= evStart && dateStr <= evEnd) {
+			return true;
+		}
+
+		// 2. Kiểm tra nếu có lặp lại hàng tuần
+		if (ev.recurrence === 'weekly' && dateStr > evStart) {
+			const startDateObj = new Date(evStart + 'T00:00:00');
+			const targetDateObj = new Date(dateStr + 'T00:00:00');
+			const diffTime = targetDateObj.getTime() - startDateObj.getTime();
+			const diffDays = Math.round(diffTime / (1000 * 3600 * 24));
+
+			const repeatLimit = ev.repeatWeeks && ev.repeatWeeks > 0 ? ev.repeatWeeks : 1;
+			const maxDays = repeatLimit * 7;
+
+			if (diffDays > 0 && diffDays <= maxDays) {
+				// Nếu ngày trong tuần trùng khớp
+				if (diffDays % 7 === 0) {
+					return true;
+				}
+			}
+		}
+
+		// 3. Hàng ngày
+		if (ev.recurrence === 'daily' && dateStr > evStart) {
+			return true;
+		}
+
+		// 4. Hàng tháng
+		if (ev.recurrence === 'monthly' && dateStr > evStart) {
+			const originalDay = parseInt(evStart.substring(8, 10), 10);
+			const targetDay = parseInt(dateStr.substring(8, 10), 10);
+			if (originalDay === targetDay) return true;
+		}
+
+		return false;
+	}
+
+	function getEventsForDate(dateStr: string): CalendarEvent[] {
+		return filteredEvents.filter((ev) => isEventOnDate(ev, dateStr));
+	}
+
 	// --- Month View Grid Calculation ---
 	interface CalendarDay {
 		date: Date;
@@ -174,11 +310,11 @@
 		const firstDayOfMonth = new Date(year, month, 1);
 		const lastDayOfMonth = new Date(year, month + 1, 0);
 
-		// T2 là ngày bắt đầu tuần (1), CN là (0) -> đổi thành T2=0, CN=6
+		// T2 là ngày bắt đầu tuần (1), CN là (0) -> T2=0, CN=6
 		let startingDay = firstDayOfMonth.getDay() - 1;
 		if (startingDay < 0) startingDay = 6;
 
-		// Ngày của tháng trước để lấp đầy hàng đầu
+		// Ngày tháng trước
 		const prevMonthLastDay = new Date(year, month, 0).getDate();
 		for (let i = startingDay - 1; i >= 0; i--) {
 			const d = new Date(year, month - 1, prevMonthLastDay - i);
@@ -192,7 +328,7 @@
 			});
 		}
 
-		// Các ngày trong tháng hiện tại
+		// Ngày trong tháng
 		for (let day = 1; day <= lastDayOfMonth.getDate(); day++) {
 			const d = new Date(year, month, day);
 			const dateStr = formatDateToYMD(d);
@@ -205,7 +341,7 @@
 			});
 		}
 
-		// Lấp đầy các ngày của tháng sau cho đủ bội số 7 (42 ô / 6 tuần)
+		// Ngày tháng sau cho đủ 42 ô (6 tuần)
 		const remaining = 42 - days.length;
 		for (let day = 1; day <= remaining; day++) {
 			const d = new Date(year, month + 1, day);
@@ -222,24 +358,44 @@
 		return days;
 	});
 
-	function checkIfToday(d: Date): boolean {
-		const today = new Date();
-		return d.getDate() === today.getDate() &&
-			d.getMonth() === today.getMonth() &&
-			d.getFullYear() === today.getFullYear();
+	// --- Week View Calculation ---
+	interface WeekDay {
+		date: Date;
+		dateStr: string;
+		dayName: string;
+		isToday: boolean;
+		events: CalendarEvent[];
 	}
 
-	function getEventsForDate(dateStr: string): CalendarEvent[] {
-		return filteredEvents.filter((ev) => {
-			if (!ev.startDate) return false;
-			const evStart = ev.startDate.substring(0, 10);
-			const evEnd = ev.endDate ? ev.endDate.substring(0, 10) : evStart;
-			return dateStr >= evStart && dateStr <= evEnd;
-		});
-	}
+	let weekDays = $derived.by(() => {
+		const days: WeekDay[] = [];
+		const dayNames = ['T2', 'T3', 'T4', 'T5', 'T6', 'T7', 'CN'];
+		const curr = new Date(currentDate);
+
+		let dayOfWeek = curr.getDay() - 1;
+		if (dayOfWeek < 0) dayOfWeek = 6; // CN = 6
+
+		const monday = new Date(curr);
+		monday.setDate(curr.getDate() - dayOfWeek);
+
+		for (let i = 0; i < 7; i++) {
+			const d = new Date(monday);
+			d.setDate(monday.getDate() + i);
+			const dateStr = formatDateToYMD(d);
+			days.push({
+				date: d,
+				dateStr,
+				dayName: dayNames[i],
+				isToday: checkIfToday(d),
+				events: getEventsForDate(dateStr)
+			});
+		}
+
+		return days;
+	});
 
 	// --- Modal Open Helpers ---
-	function openCreateModal(dateStr?: string) {
+	function openCreateModal(dateStr?: string, defaultHour = 9) {
 		isEditing = false;
 		modalId = '';
 		modalTitle = '';
@@ -247,13 +403,14 @@
 		const targetDate = dateStr || formatDateToYMD(new Date());
 		modalStartDate = targetDate;
 		modalEndDate = targetDate;
-		modalStartTime = '09:00';
-		modalEndTime = '10:00';
+		modalStartTime = `${String(defaultHour).padStart(2, '0')}:00`;
+		modalEndTime = `${String(Math.min(23, defaultHour + 1)).padStart(2, '0')}:00`;
 		modalAllDay = false;
 		modalColor = 'indigo';
 		modalCategory = 'Công việc';
 		modalReminder = 15;
 		modalRecurrence = 'none';
+		modalRepeatWeeks = 1;
 		showEventModal = true;
 	}
 
@@ -289,6 +446,7 @@
 		modalCategory = ev.category || 'Công việc';
 		modalReminder = ev.reminderMinutes ?? 15;
 		modalRecurrence = ev.recurrence || 'none';
+		modalRepeatWeeks = ev.repeatWeeks && ev.repeatWeeks > 0 ? ev.repeatWeeks : 1;
 		showEventModal = true;
 	}
 
@@ -315,7 +473,8 @@
 			color: modalColor,
 			category: modalCategory,
 			reminderMinutes: Number(modalReminder),
-			recurrence: modalRecurrence
+			recurrence: modalRecurrence,
+			repeatWeeks: modalRecurrence === 'weekly' ? Number(modalRepeatWeeks) : 1
 		};
 
 		try {
@@ -364,12 +523,50 @@
 		if (!dateStr || !dateStr.includes('T')) return 'Cả ngày';
 		return dateStr.substring(11, 16);
 	}
+
+	// Tính vị trí Top và Chiều cao (Height) của block sự kiện trong timeline 24 giờ
+	// Mỗi 1 giờ tương đương 64px (1 phút = 64/60 px)
+	function getEventTimelineStyle(ev: CalendarEvent, isBeingResized = false) {
+		const HOUR_HEIGHT = 64; // px
+		if (ev.allDay || !ev.startDate.includes('T')) {
+			return { top: 0, height: 28, isAllDay: true };
+		}
+
+		const startParts = ev.startDate.substring(11, 16).split(':').map(Number);
+		const startMinutes = (startParts[0] || 0) * 60 + (startParts[1] || 0);
+
+		let endMinutes = startMinutes + 60;
+		if (isBeingResized && isResizing) {
+			endMinutes = resizeCurrentEndMin;
+		} else if (ev.endDate && ev.endDate.includes('T')) {
+			const endParts = ev.endDate.substring(11, 16).split(':').map(Number);
+			endMinutes = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+		}
+
+		const durationMin = Math.max(15, endMinutes - startMinutes);
+		const top = (startMinutes / 60) * HOUR_HEIGHT;
+		const height = (durationMin / 60) * HOUR_HEIGHT;
+
+		return { top, height, isAllDay: false, durationMin };
+	}
+
+	function startResizing(ev: CalendarEvent, e: MouseEvent) {
+		e.stopPropagation();
+		e.preventDefault();
+		isResizing = true;
+		resizingEvent = ev;
+		resizeStartY = e.clientY;
+
+		const endParts = (ev.endDate && ev.endDate.includes('T') ? ev.endDate : ev.startDate).substring(11, 16).split(':').map(Number);
+		resizeOriginalEndMin = (endParts[0] || 0) * 60 + (endParts[1] || 0);
+		resizeCurrentEndMin = resizeOriginalEndMin;
+	}
 </script>
 
-<div class="space-y-6">
+<div class="space-y-6 select-none">
 	<!-- TOP TOOLBAR -->
 	<div class="bg-zinc-900/60 backdrop-blur-xl border border-zinc-800/80 rounded-3xl p-5 shadow-2xl flex flex-col md:flex-row md:items-center justify-between gap-4">
-		<!-- Left: Navigation & Current Month -->
+		<!-- Left: Navigation & Current Month/Week/Day -->
 		<div class="flex items-center gap-3">
 			<div class="p-2.5 rounded-2xl bg-indigo-500/10 border border-indigo-500/20 text-indigo-400">
 				<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-6 h-6">
@@ -439,8 +636,20 @@
 				{/each}
 			</select>
 
-			<!-- View Mode Switch Tabs -->
+			<!-- View Mode Switch: Ngày | Tuần | Tháng | Lịch trình -->
 			<div class="flex items-center p-1 bg-zinc-950/80 border border-zinc-800 rounded-xl">
+				<button
+					onclick={() => (currentView = 'day')}
+					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'day' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+				>
+					Ngày
+				</button>
+				<button
+					onclick={() => (currentView = 'week')}
+					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'week' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
+				>
+					Tuần
+				</button>
 				<button
 					onclick={() => (currentView = 'month')}
 					class="px-2.5 py-1 text-xs font-bold rounded-lg transition-all cursor-pointer {currentView === 'month' ? 'bg-indigo-600 text-white shadow' : 'text-zinc-400 hover:text-white'}"
@@ -478,6 +687,217 @@
 		<div class="p-4 rounded-2xl bg-rose-950/30 border border-rose-800/60 text-rose-300 text-xs flex items-center gap-2">
 			<span>⚠️</span>
 			<span>{errorMessage}</span>
+		</div>
+	{:else if currentView === 'day'}
+		<!-- DAY VIEW: 24h Timeline with drag resize -->
+		{@const todayStr = formatDateToYMD(currentDate)}
+		{@const dayEvents = getEventsForDate(todayStr)}
+		{@const allDayEvents = dayEvents.filter((e) => e.allDay || !e.startDate.includes('T'))}
+		{@const timedEvents = dayEvents.filter((e) => !e.allDay && e.startDate.includes('T'))}
+
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+			<!-- Header for Day -->
+			<div class="p-4 border-b border-zinc-800 bg-zinc-950/50 flex items-center justify-between">
+				<div class="flex items-center gap-3">
+					<span class="text-2xl font-black {checkIfToday(currentDate) ? 'text-indigo-400' : 'text-white'}">
+						{currentDate.getDate()}
+					</span>
+					<div>
+						<h3 class="text-sm font-bold text-zinc-200">
+							{currentDate.toLocaleDateString('vi-VN', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+						</h3>
+						<span class="text-[11px] text-zinc-500">
+							{dayEvents.length} sự kiện được xếp lịch
+						</span>
+					</div>
+				</div>
+
+				<div class="text-xs text-zinc-400 italic">
+					💡 Kéo cạnh dưới sự kiện để thay đổi độ dài thời gian
+				</div>
+			</div>
+
+			<!-- All Day Section (if any) -->
+			{#if allDayEvents.length > 0}
+				<div class="px-6 py-2 border-b border-zinc-800/80 bg-zinc-950/30 flex items-center gap-3">
+					<span class="text-[11px] font-bold text-zinc-500 w-16 uppercase">Cả ngày</span>
+					<div class="flex flex-wrap gap-2 flex-1">
+						{#each allDayEvents as ev (ev.id)}
+							{@const cfg = getColorConfig(ev.color)}
+							<button
+								type="button"
+								onclick={(e) => openEditModal(ev, e)}
+								class="px-3 py-1 rounded-lg text-xs font-bold border transition-all hover:scale-105 {cfg.badge} flex items-center gap-1.5"
+							>
+								<span class="w-2 h-2 rounded-full {cfg.bg}"></span>
+								<span>{ev.title}</span>
+							</button>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- 24-Hour Scrollable Grid -->
+			<div class="relative h-[650px] overflow-y-auto divide-y divide-zinc-800/30">
+				{#each HOURS_OF_DAY as hour}
+					<div
+						role="button"
+						tabindex="0"
+						onclick={() => openCreateModal(todayStr, hour)}
+						onkeydown={(e) => { if (e.key === 'Enter') openCreateModal(todayStr, hour); }}
+						class="h-16 flex border-b border-zinc-800/30 hover:bg-zinc-800/10 transition-colors group cursor-pointer relative"
+					>
+						<!-- Hour Label -->
+						<div class="w-16 shrink-0 text-right pr-3 pt-1 text-[11px] font-mono font-medium text-zinc-500 border-r border-zinc-800/50">
+							{String(hour).padStart(2, '0')}:00
+						</div>
+						<!-- Empty Hour Slot -->
+						<div class="flex-1 relative">
+							<span class="hidden group-hover:inline-block absolute left-3 top-2 text-[10px] text-indigo-400 font-semibold opacity-60">
+								+ Bấm để thêm lúc {String(hour).padStart(2, '0')}:00
+							</span>
+						</div>
+					</div>
+				{/each}
+
+				<!-- Positioned Events Overlay -->
+				<div class="absolute top-0 left-16 right-0 bottom-0 pointer-events-none">
+					{#each timedEvents as ev (ev.id)}
+						{@const isBeingResized = isResizing && resizingEvent?.id === ev.id}
+						{@const st = getEventTimelineStyle(ev, isBeingResized)}
+						{@const cfg = getColorConfig(ev.color)}
+						<div
+							role="button"
+							tabindex="0"
+							onclick={(e) => openEditModal(ev, e)}
+							onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
+							style="top: {st.top}px; height: {st.height}px;"
+							class="absolute left-2 right-4 rounded-xl border p-2 shadow-lg backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
+						>
+							<div class="flex items-start justify-between gap-2">
+								<div class="space-y-0.5">
+									<div class="flex items-center gap-1.5 font-bold text-xs">
+										<span class="w-2 h-2 rounded-full {cfg.bg}"></span>
+										<span class="truncate text-white">{ev.title}</span>
+										<span class="text-[10px] opacity-75 font-mono">
+											({formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)})
+										</span>
+									</div>
+									{#if ev.description}
+										<p class="text-[11px] text-zinc-300 line-clamp-1">{ev.description}</p>
+									{/if}
+								</div>
+
+								<span class="text-[10px] px-1.5 py-0.5 rounded bg-black/30 font-semibold text-zinc-200">
+									{ev.category}
+								</span>
+							</div>
+
+							<!-- Resize Handle (Kéo để chỉnh độ dài) -->
+							<div
+								role="slider"
+								aria-label="Kéo để chỉnh thời gian kết thúc"
+								aria-valuenow={st.durationMin || 60}
+								tabindex="0"
+								onmousedown={(e) => startResizing(ev, e)}
+								class="w-full h-3 -mb-1 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded-b transition-colors group-hover:opacity-100 opacity-60"
+								title="Kéo thả để điều chỉnh thời gian kết thúc"
+							>
+								<div class="w-8 h-1 bg-white/60 rounded-full"></div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+		</div>
+	{:else if currentView === 'week'}
+		<!-- WEEK VIEW: 7 Columns with 24 Hours -->
+		<div class="bg-zinc-900/40 border border-zinc-800/80 rounded-3xl overflow-hidden shadow-2xl backdrop-blur-xl">
+			<!-- Weekday Headers -->
+			<div class="grid grid-cols-8 border-b border-zinc-800/80 bg-zinc-950/50 text-center py-3 text-xs font-bold divide-x divide-zinc-800/50">
+				<div class="text-zinc-500 font-mono text-[11px] flex items-center justify-center">
+					Giờ
+				</div>
+				{#each weekDays as day}
+					<div class="py-1 space-y-1">
+						<span class="text-zinc-400 uppercase text-[10px] block">{day.dayName}</span>
+						<span class="inline-flex w-7 h-7 items-center justify-center rounded-full font-bold {day.isToday ? 'bg-indigo-600 text-white shadow-md' : 'text-zinc-200'}">
+							{day.date.getDate()}
+						</span>
+					</div>
+				{/each}
+			</div>
+
+			<!-- Week 24h Grid -->
+			<div class="relative h-[650px] overflow-y-auto">
+				<div class="grid grid-cols-8 divide-x divide-zinc-800/40">
+					<!-- Hours Column -->
+					<div class="divide-y divide-zinc-800/30">
+						{#each HOURS_OF_DAY as hour}
+							<div class="h-16 text-right pr-2 pt-1 text-[11px] font-mono font-medium text-zinc-500">
+								{String(hour).padStart(2, '0')}:00
+							</div>
+						{/each}
+					</div>
+
+					<!-- 7 Days Columns -->
+					{#each weekDays as day}
+						{@const timedDayEvents = day.events.filter((e) => !e.allDay && e.startDate.includes('T'))}
+						<div class="relative divide-y divide-zinc-800/30">
+							{#each HOURS_OF_DAY as hour}
+								<div
+									role="button"
+									tabindex="0"
+									onclick={() => openCreateModal(day.dateStr, hour)}
+									onkeydown={(e) => { if (e.key === 'Enter') openCreateModal(day.dateStr, hour); }}
+									class="h-16 hover:bg-zinc-800/10 transition-colors cursor-pointer"
+								></div>
+							{/each}
+
+							<!-- Positioned Events inside day column -->
+							<div class="absolute inset-0 pointer-events-none">
+								{#each timedDayEvents as ev (ev.id)}
+									{@const isBeingResized = isResizing && resizingEvent?.id === ev.id}
+									{@const st = getEventTimelineStyle(ev, isBeingResized)}
+									{@const cfg = getColorConfig(ev.color)}
+									<div
+										role="button"
+										tabindex="0"
+										onclick={(e) => openEditModal(ev, e)}
+										onkeydown={(e) => { if (e.key === 'Enter') openEditModal(ev); }}
+										style="top: {st.top}px; height: {st.height}px;"
+										class="absolute left-1 right-1 rounded-lg border p-1 shadow-md backdrop-blur-md transition-all pointer-events-auto flex flex-col justify-between overflow-hidden group cursor-pointer hover:ring-2 hover:ring-white/40 {cfg.badge}"
+										title={`${ev.title} (${formatDisplayTime(ev.startDate)} - ${formatDisplayTime(ev.endDate)})`}
+									>
+										<div>
+											<div class="flex items-center gap-1 font-bold text-[11px] truncate">
+												<span class="w-1.5 h-1.5 rounded-full {cfg.bg} shrink-0"></span>
+												<span class="truncate text-white">{ev.title}</span>
+											</div>
+											<div class="text-[9px] opacity-75 font-mono truncate">
+												{formatDisplayTime(ev.startDate)} - {isBeingResized ? formatMinutesToTimeString(resizeCurrentEndMin) : formatDisplayTime(ev.endDate)}
+											</div>
+										</div>
+
+										<!-- Resize Handle -->
+										<div
+											role="slider"
+											aria-label="Kéo để chỉnh thời gian kết thúc"
+											aria-valuenow={st.durationMin || 60}
+											tabindex="0"
+											onmousedown={(e) => startResizing(ev, e)}
+											class="w-full h-2 cursor-ns-resize flex items-center justify-center hover:bg-white/20 rounded transition-colors group-hover:opacity-100 opacity-40"
+											title="Kéo thả để điều chỉnh thời lượng"
+										>
+											<div class="w-4 h-0.5 bg-white/60 rounded-full"></div>
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
 		</div>
 	{:else if currentView === 'month'}
 		<!-- MONTH VIEW: Google Calendar Style Grid -->
@@ -576,6 +996,19 @@
 										<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold border {cfg.badge}">
 											{ev.category}
 										</span>
+										{#if ev.recurrence === 'weekly'}
+											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-violet-500/15 text-violet-300 border border-violet-500/30">
+												🔁 Lặp {ev.repeatWeeks || 1} tuần
+											</span>
+										{:else if ev.recurrence === 'daily'}
+											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-blue-500/15 text-blue-300 border border-blue-500/30">
+												🔁 Hàng ngày
+											</span>
+										{:else if ev.recurrence === 'monthly'}
+											<span class="px-2 py-0.5 rounded-lg text-[10px] font-semibold bg-emerald-500/15 text-emerald-300 border border-emerald-500/30">
+												🔁 Hàng tháng
+											</span>
+										{/if}
 										{#if ev.reminderMinutes > 0}
 											<span class="text-[10px] text-zinc-400 flex items-center gap-1 font-mono">
 												🔔 Nhắc trước {ev.reminderMinutes}p
@@ -707,6 +1140,44 @@
 					</div>
 				</div>
 
+				<!-- Recurrence & Repeat Weeks Option -->
+				<div class="p-3 rounded-xl bg-zinc-950/60 border border-zinc-800/80 space-y-3">
+					<div class="flex items-center justify-between">
+						<label for="event-recurrence-select" class="font-bold text-zinc-300 flex items-center gap-1.5">
+							<span>🔁 Lặp lại sự kiện</span>
+						</label>
+						<select
+							id="event-recurrence-select"
+							bind:value={modalRecurrence}
+							class="bg-zinc-900 border border-zinc-700 rounded-lg px-2.5 py-1.5 text-zinc-200 text-xs focus:outline-none"
+						>
+							<option value="none">Không lặp lại</option>
+							<option value="daily">Hàng ngày</option>
+							<option value="weekly">Hàng tuần</option>
+							<option value="monthly">Hàng tháng</option>
+						</select>
+					</div>
+
+					{#if modalRecurrence === 'weekly'}
+						<div class="flex items-center justify-between pt-2 border-t border-zinc-800/60">
+							<div>
+								<span class="font-semibold text-zinc-200">Số tuần lặp lại</span>
+								<p class="text-[11px] text-zinc-500">Sự kiện sẽ tự động lặp trong bao nhiêu tuần tới</p>
+							</div>
+							<div class="flex items-center gap-2">
+								<input
+									type="number"
+									min="1"
+									max="52"
+									bind:value={modalRepeatWeeks}
+									class="w-16 bg-zinc-900 border border-zinc-700 rounded-lg px-2 py-1 text-center text-zinc-100 font-bold focus:outline-none focus:ring-1 focus:ring-indigo-500"
+								/>
+								<span class="text-zinc-400 text-xs">tuần</span>
+							</div>
+						</div>
+					{/if}
+				</div>
+
 				<!-- Category & Color -->
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 					<div>
@@ -768,7 +1239,7 @@
 						bind:value={modalDescription}
 						rows="3"
 						placeholder="Thêm mô tả, link cuộc họp, lệnh server hoặc danh sách công việc cần làm..."
-						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none"
+						class="w-full bg-zinc-950 border border-zinc-800 rounded-xl px-3.5 py-2 text-zinc-100 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-indigo-500 resize-none"
 					></textarea>
 				</div>
 

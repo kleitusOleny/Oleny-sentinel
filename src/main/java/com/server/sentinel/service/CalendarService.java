@@ -116,6 +116,7 @@ public class CalendarService {
         existing.setCategory(dto.getCategory() != null ? dto.getCategory() : existing.getCategory());
         existing.setReminderMinutes(dto.getReminderMinutes());
         existing.setRecurrence(dto.getRecurrence() != null ? dto.getRecurrence() : "none");
+        existing.setRepeatWeeks(dto.getRepeatWeeks() > 0 ? dto.getRepeatWeeks() : 1);
         existing.setNotified(false); // Reset de co the nhac nho lai neu doi gio
 
         saveEventsToFile();
