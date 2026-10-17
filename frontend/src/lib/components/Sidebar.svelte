@@ -287,7 +287,20 @@
 		<span class="text-[10px] mt-1">Files</span>
 	</button>
 
-	<!-- 4. MORE MENU BUTTON (Mở Bottom Sheet) -->
+	<!-- 4. Calendar -->
+	<button
+		onclick={() => onselectTab('calendar')}
+		class="flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer {activeTab === 'calendar' ? 'text-indigo-400 font-bold' : 'text-zinc-500 hover:text-zinc-300'}"
+	>
+		<div class="relative">
+			<svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="1.8" stroke="currentColor" class="w-5 h-5 transition-transform {activeTab === 'calendar' ? 'scale-110 text-indigo-400' : ''}">
+				<path stroke-linecap="round" stroke-linejoin="round" d="M6.75 3v2.25M17.25 3v2.25M3 18.75V7.5a2.25 2.25 0 0 1 2.25-2.25h13.5A2.25 2.25 0 0 1 21 7.5v11.25m-18 0A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75m-18 0v-7.5A2.25 2.25 0 0 1 5.25 9h13.5A2.25 2.25 0 0 1 21 9v7.5" />
+			</svg>
+		</div>
+		<span class="text-[10px] mt-1">Lịch</span>
+	</button>
+
+	<!-- 5. MORE MENU BUTTON (Mở Bottom Sheet) -->
 	<button
 		onclick={() => (isMobileDrawerOpen = true)}
 		class="flex flex-col items-center justify-center flex-1 py-1 px-1 rounded-xl transition-all cursor-pointer {['overview', 'terminal', 'settings'].includes(activeTab) || isMobileDrawerOpen ? 'text-indigo-400 font-bold' : 'text-zinc-500 hover:text-zinc-300'}"
@@ -355,6 +368,18 @@
 				<div>
 					<div class="text-xs font-bold">Web Terminal</div>
 					<div class="text-[10px] text-zinc-500">Shell & Docker exec</div>
+				</div>
+			</button>
+
+			<!-- Calendar -->
+			<button
+				onclick={() => handleMobileSelect('calendar')}
+				class="flex items-center gap-3 p-3 rounded-2xl border transition-all text-left {activeTab === 'calendar' ? 'bg-indigo-600/20 border-indigo-500/50 text-indigo-300' : 'bg-zinc-900/60 border-zinc-800 text-zinc-300 hover:bg-zinc-800'}"
+			>
+				<span class="text-xl">📅</span>
+				<div>
+					<div class="text-xs font-bold">Lịch biểu</div>
+					<div class="text-[10px] text-zinc-500">Lịch học, sự kiện</div>
 				</div>
 			</button>
 
