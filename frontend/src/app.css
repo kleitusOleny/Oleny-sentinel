@@ -18,3 +18,92 @@ html, body {
 	padding-right: env(safe-area-inset-right);
 	overscroll-behavior-y: none;
 }
+
+/* 🎀 Neko Idol / Cyber Magenta & Star Pink Theme (Dựa theo nhân vật anime tóc hồng tai mèo) */
+html[data-theme='anime-pink'] {
+	background-color: #0d0910;
+}
+
+html[data-theme='anime-pink'],
+html[data-theme='anime-pink'] body {
+	background-color: #0d0910 !important;
+	color: #fce7f3;
+}
+
+/* Background Overrides */
+html[data-theme='anime-pink'] .bg-zinc-950,
+html[data-theme='anime-pink'] .bg-zinc-950\/50,
+html[data-theme='anime-pink'] .bg-zinc-950\/70,
+html[data-theme='anime-pink'] .bg-zinc-950\/80 {
+	background-color: rgba(18, 12, 22, 0.95) !important;
+}
+
+html[data-theme='anime-pink'] .bg-zinc-900,
+html[data-theme='anime-pink'] .bg-zinc-900\/30,
+html[data-theme='anime-pink'] .bg-zinc-900\/40,
+html[data-theme='anime-pink'] .bg-zinc-900\/50,
+html[data-theme='anime-pink'] .bg-zinc-900\/80,
+html[data-theme='anime-pink'] .bg-zinc-900\/90 {
+	background-color: rgba(33, 20, 39, 0.65) !important;
+}
+
+html[data-theme='anime-pink'] .bg-zinc-800,
+html[data-theme='anime-pink'] .hover\:bg-zinc-800:hover,
+html[data-theme='anime-pink'] .bg-zinc-850 {
+	background-color: rgba(54, 32, 64, 0.75) !important;
+}
+
+/* Border Overrides with soft magenta / deep cat-ear navy hue */
+html[data-theme='anime-pink'] .border-zinc-800,
+html[data-theme='anime-pink'] .border-zinc-800\/60,
+html[data-theme='anime-pink'] .border-zinc-800\/80,
+html[data-theme='anime-pink'] .border-zinc-900\/80,
+html[data-theme='anime-pink'] .border-zinc-850 {
+	border-color: rgba(244, 63, 134, 0.22) !important;
+}
+
+/* Primary Indigo Accent -> Vibrantly mapped to Character's Signature Neon Pink / Rose Red & Ribbon Star */
+html[data-theme='anime-pink'] .bg-indigo-600 {
+	background-color: #f43f86 !important;
+}
+
+html[data-theme='anime-pink'] .hover\:bg-indigo-500:hover,
+html[data-theme='anime-pink'] .hover\:bg-indigo-600:hover {
+	background-color: #fb719e !important;
+}
+
+html[data-theme='anime-pink'] .bg-indigo-600\/10,
+html[data-theme='anime-pink'] .bg-indigo-500\/10 {
+	background-color: rgba(244, 63, 134, 0.14) !important;
+}
+
+html[data-theme='anime-pink'] .bg-indigo-500 {
+	background-color: #f43f86 !important;
+}
+
+html[data-theme='anime-pink'] .text-indigo-400,
+html[data-theme='anime-pink'] .text-indigo-500,
+html[data-theme='anime-pink'] .text-indigo-300 {
+	color: #fb719e !important;
+}
+
+html[data-theme='anime-pink'] .hover\:text-indigo-300:hover,
+html[data-theme='anime-pink'] .hover\:text-indigo-400:hover {
+	color: #fbcfe8 !important;
+}
+
+html[data-theme='anime-pink'] .border-indigo-500,
+html[data-theme='anime-pink'] .border-indigo-500\/20,
+html[data-theme='anime-pink'] .border-indigo-500\/30 {
+	border-color: rgba(244, 63, 134, 0.35) !important;
+}
+
+html[data-theme='anime-pink'] .focus\:ring-indigo-500:focus {
+	--tw-ring-color: #f43f86 !important;
+}
+
+/* Ribbon badge / star glow */
+html[data-theme='anime-pink'] ::selection {
+	background-color: #f43f86;
+	color: #ffffff;
+}
