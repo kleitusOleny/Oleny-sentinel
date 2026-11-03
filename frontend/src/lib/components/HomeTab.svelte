@@ -5,6 +5,7 @@
 	import ScratchpadModule from './module/ScratchpadModule.svelte';
 	import ContainersTab from './ContainersTab.svelte';
 	import FileManagerTab from './FileManagerTab.svelte';
+	import nanallyGif from '$lib/assets/nanally1.gif';
 
 	interface ContainerItem {
 		Id?: string;
@@ -585,6 +586,16 @@
 				</svg>
 				{currentDate || 'Loading...'}
 			</div>
+		</div>
+
+		<!-- Nanally Mascot GIF (Ở giữa Thời gian và Thời tiết) -->
+		<div class="z-10 flex items-center justify-center my-[-8px] md:my-0 select-none pointer-events-none">
+			<img
+				src={nanallyGif}
+				alt="Nanally Mascot"
+				class="h-20 w-20 sm:h-24 sm:w-24 md:h-28 md:w-28 object-contain drop-shadow-[0_4px_16px_rgba(244,63,134,0.35)] hover:scale-110 transition-transform pointer-events-auto cursor-pointer"
+				title="Nanally"
+			/>
 		</div>
 
 		<!-- Live Weather Card -->
