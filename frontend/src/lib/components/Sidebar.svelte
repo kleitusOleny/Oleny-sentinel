@@ -1,4 +1,5 @@
 <script lang="ts">
+	import nekoIcon from '$lib/assets/neko-icon.png';
 	interface Props {
 		collapsed: boolean;
 		activeTab: string;
@@ -82,9 +83,8 @@
 		<div class="flex items-center {collapsed ? 'justify-center' : 'justify-between'} gap-3">
 			{#if !collapsed}
 				<div class="flex items-center gap-3 overflow-hidden">
-					<div class="relative flex h-3.5 w-3.5 shrink-0">
-						<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-						<span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500"></span>
+					<div class="relative flex h-8 w-8 shrink-0 items-center justify-center">
+						<img src={nekoIcon} alt="Sentinel Neko Icon" class="h-8 w-8 object-contain drop-shadow-[0_2px_8px_rgba(244,63,134,0.35)] select-none pointer-events-none hover:scale-110 transition-transform" />
 					</div>
 					<div class="truncate">
 						<span class="font-extrabold tracking-wider bg-gradient-to-r from-violet-400 via-indigo-400 to-cyan-400 bg-clip-text text-transparent text-base">
@@ -94,9 +94,8 @@
 					</div>
 				</div>
 			{:else}
-				<div class="relative flex h-3.5 w-3.5 shrink-0">
-					<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-					<span class="relative inline-flex rounded-full h-3.5 w-3.5 bg-indigo-500"></span>
+				<div class="relative flex h-8 w-8 shrink-0 items-center justify-center" title="SENTINEL">
+					<img src={nekoIcon} alt="Sentinel Neko Icon" class="h-8 w-8 object-contain drop-shadow-[0_2px_8px_rgba(244,63,134,0.35)] select-none pointer-events-none hover:scale-110 transition-transform" />
 				</div>
 			{/if}
 
@@ -334,7 +333,7 @@
 		<!-- Drag handle & Header -->
 		<div class="flex items-center justify-between pb-2 border-b border-zinc-800/80">
 			<div class="flex items-center gap-2.5">
-				<div class="w-3 h-3 rounded-full bg-indigo-500"></div>
+				<img src={nekoIcon} alt="Neko Icon" class="w-5 h-5 object-contain shrink-0" />
 				<h3 class="font-bold text-sm text-zinc-200">Menu & Công Cụ Hệ Thống</h3>
 			</div>
 			<button
