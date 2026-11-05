@@ -20,19 +20,28 @@ export const fallback: RequestHandler = async ({ request, params }) => {
 	});
 
 	try {
-		// Forward request body as stream without buffering in memory
+		// Forward request body properly without streaming corruption for small JSON payloads
 		let reqBody: any = undefined;
 		if (request.method !== 'GET' && request.method !== 'HEAD') {
-			reqBody = request.body;
+			const contentType = request.headers.get('content-type') || '';
+			if (contentType.includes('multipart/form-data')) {
+				reqBody = request.body;
+			} else {
+				reqBody = await request.arrayBuffer();
+			}
+		}
+
+		const fetchOptions: any = {
+			method: request.method,
+			headers,
+			body: reqBody
+		};
+		if (reqBody && reqBody === request.body) {
+			fetchOptions.duplex = 'half';
 		}
 
 		// Fetch from the backend
-		const response = await fetch(destUrl, {
-			method: request.method,
-			headers,
-			body: reqBody,
-			duplex: 'half' // required when forwarding stream body in node fetch
-		} as any);
+		const response = await fetch(destUrl, fetchOptions);
 
 		// Copy response headers
 		const responseHeaders = new Headers();
