@@ -113,6 +113,7 @@
 				fullName: dayFullNames[i],
 				dayNum: d.getDate(),
 				monthNum: d.getMonth() + 1,
+				dayFormatted: `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}`,
 				isWeekend: i >= 5,
 				isToday: isToday
 			});
@@ -912,15 +913,15 @@
 									{#each weekDays as day (day.dateStr)}
 										<th
 											colspan="3"
-											class="py-2 px-2 text-center border-r border-zinc-800/80 last:border-r-0 {day.isToday ? 'bg-pink-500/10' : ''}"
+											class="py-2 px-1.5 text-center border-r border-zinc-800/80 last:border-r-0 {day.isToday ? 'bg-pink-500/10' : ''}"
 										>
 											<div class="flex flex-col items-center justify-center">
-												<div class="flex items-center gap-1">
+												<div class="flex items-center gap-1.5 flex-wrap justify-center">
 													<span class="text-[11px] font-bold {day.isWeekend ? 'text-amber-400' : 'text-zinc-400'}">
 														{day.name}
 													</span>
-													<span class="font-mono text-sm font-black {day.isToday ? 'text-pink-400 underline underline-offset-2' : 'text-zinc-100'}">
-														{day.dayNum}
+													<span class="font-mono text-xs sm:text-sm font-black {day.isToday ? 'text-pink-400 underline underline-offset-2' : 'text-zinc-100'}">
+														{day.dayFormatted}
 													</span>
 													{#if day.isToday}
 														<span class="text-[8px] px-1 rounded-full bg-pink-500 text-white font-black uppercase">
