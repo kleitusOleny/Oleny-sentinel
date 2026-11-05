@@ -7,7 +7,10 @@ import java.util.List;
 public class HangoutMemberDto {
     private String id;
     private String name;
-    // Danh sach cac ngay ranh dinh dang "YYYY-MM-DD"
+    // Danh sach cac buoi ranh dinh dang "YYYY-MM-DD_morning", "YYYY-MM-DD_afternoon", "YYYY-MM-DD_evening"
+    // De tuong thich nguoc: neu phan tu la "YYYY-MM-DD", coi nhu ranh ca ngay (hoac giu nguyen)
+    private List<String> availableSlots;
+    // Deprecated nhung giu de doc du lieu cu neu can
     private List<String> availableDates;
     private String color;
     private Long updatedAt;
@@ -17,10 +20,10 @@ public class HangoutMemberDto {
     public HangoutMemberDto() {
     }
 
-    public HangoutMemberDto(String id, String name, List<String> availableDates, String color, Long updatedAt, String pinHash) {
+    public HangoutMemberDto(String id, String name, List<String> availableSlots, String color, Long updatedAt, String pinHash) {
         this.id = id;
         this.name = name;
-        this.availableDates = availableDates;
+        this.availableSlots = availableSlots;
         this.color = color;
         this.updatedAt = updatedAt;
         this.pinHash = pinHash;
@@ -40,6 +43,14 @@ public class HangoutMemberDto {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public List<String> getAvailableSlots() {
+        return availableSlots;
+    }
+
+    public void setAvailableSlots(List<String> availableSlots) {
+        this.availableSlots = availableSlots;
     }
 
     public List<String> getAvailableDates() {

@@ -66,8 +66,16 @@ public class HangoutService {
                 if (list != null) {
                     for (HangoutMemberDto m : list) {
                         if (m.getId() != null) {
-                            if (m.getAvailableDates() == null) {
-                                m.setAvailableDates(new ArrayList<>());
+                            if (m.getAvailableSlots() == null) {
+                                m.setAvailableSlots(new ArrayList<>());
+                            }
+                            // Neu co availableDates cu thi chuyen sang availableSlots (morning, afternoon, evening) de tuong thich
+                            if (m.getAvailableDates() != null && !m.getAvailableDates().isEmpty()) {
+                                for (String d : m.getAvailableDates()) {
+                                    if (!m.getAvailableSlots().contains(d + "_morning")) m.getAvailableSlots().add(d + "_morning");
+                                    if (!m.getAvailableSlots().contains(d + "_afternoon")) m.getAvailableSlots().add(d + "_afternoon");
+                                    if (!m.getAvailableSlots().contains(d + "_evening")) m.getAvailableSlots().add(d + "_evening");
+                                }
                             }
                             membersMap.put(m.getId(), m);
                         }
@@ -105,7 +113,7 @@ public class HangoutService {
             HangoutMemberDto safe = new HangoutMemberDto();
             safe.setId(original.getId());
             safe.setName(original.getName());
-            safe.setAvailableDates(original.getAvailableDates() != null ? new ArrayList<>(original.getAvailableDates()) : new ArrayList<>());
+            safe.setAvailableSlots(original.getAvailableSlots() != null ? new ArrayList<>(original.getAvailableSlots()) : new ArrayList<>());
             safe.setColor(original.getColor());
             safe.setUpdatedAt(original.getUpdatedAt());
             // An pinHash khi gui ve client
@@ -134,7 +142,7 @@ public class HangoutService {
         dto.setName(name.trim());
         int idx = Math.abs(id.hashCode()) % DEFAULT_COLORS.length;
         dto.setColor(DEFAULT_COLORS[idx]);
-        dto.setAvailableDates(new ArrayList<>());
+        dto.setAvailableSlots(new ArrayList<>());
         dto.setUpdatedAt(System.currentTimeMillis());
         dto.setPinHash(hashPin(rawPin));
 
@@ -143,7 +151,11 @@ public class HangoutService {
         return dto;
     }
 
-    public HangoutMemberDto toggleDateWithPin(String memberId, String date, String rawPin) {
+    /**
+     * Bat / tat trang thai ranh cua mot buoi (slot).
+     * slot co dang: "YYYY-MM-DD_morning", "YYYY-MM-DD_afternoon", "YYYY-MM-DD_evening"
+     */
+    public HangoutMemberDto toggleSlotWithPin(String memberId, String slot, String rawPin) {
         HangoutMemberDto member = membersMap.get(memberId);
         if (member == null) {
             throw new NoSuchElementException("Không tìm thấy thành viên với ID: " + memberId);
@@ -153,13 +165,52 @@ public class HangoutService {
             throw new SecurityException("Mã PIN 4 số không chính xác. Không thể sửa lịch của thành viên này!");
         }
 
-        List<String> dates = new ArrayList<>(member.getAvailableDates() != null ? member.getAvailableDates() : Collections.emptyList());
-        if (dates.contains(date)) {
-            dates.remove(date);
+        List<String> slots = new ArrayList<>(member.getAvailableSlots() != null ? member.getAvailableSlots() : Collections.emptyList());
+        if (slots.contains(slot)) {
+            slots.remove(slot);
         } else {
-            dates.add(date);
+            slots.add(slot);
         }
-        member.setAvailableDates(dates);
+        member.setAvailableSlots(slots);
+        member.setUpdatedAt(System.currentTimeMillis());
+        membersMap.put(memberId, member);
+        saveMembersToFile();
+        return member;
+    }
+
+    /**
+     * Bat / tat tat ca cac buoi trong mot ngay cho thanh vien
+     * Neu tat ca cac buoi cua ngay da duoc chon -> bo chon het ca ngay
+     * Nguoc lai -> chon het tat ca buoi trong ngay do
+     */
+    public HangoutMemberDto toggleFullDayWithPin(String memberId, String date, String rawPin) {
+        HangoutMemberDto member = membersMap.get(memberId);
+        if (member == null) {
+            throw new NoSuchElementException("Không tìm thấy thành viên với ID: " + memberId);
+        }
+
+        if (!verifyPin(memberId, rawPin)) {
+            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể sửa lịch của thành viên này!");
+        }
+
+        String mSlot = date + "_morning";
+        String aSlot = date + "_afternoon";
+        String eSlot = date + "_evening";
+
+        List<String> slots = new ArrayList<>(member.getAvailableSlots() != null ? member.getAvailableSlots() : Collections.emptyList());
+        boolean hasAll = slots.contains(mSlot) && slots.contains(aSlot) && slots.contains(eSlot);
+
+        if (hasAll) {
+            slots.remove(mSlot);
+            slots.remove(aSlot);
+            slots.remove(eSlot);
+        } else {
+            if (!slots.contains(mSlot)) slots.add(mSlot);
+            if (!slots.contains(aSlot)) slots.add(aSlot);
+            if (!slots.contains(eSlot)) slots.add(eSlot);
+        }
+
+        member.setAvailableSlots(slots);
         member.setUpdatedAt(System.currentTimeMillis());
         membersMap.put(memberId, member);
         saveMembersToFile();
