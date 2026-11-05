@@ -287,11 +287,11 @@
 	async function handleAddMember(e: SubmitEvent) {
 		e.preventDefault();
 		const name = newMemberName.trim();
-		const pin = newMemberPin.trim();
+		const pin = (newMemberPin || '').trim();
 
 		if (!name) return;
-		if (pin.length !== 4 || !/^\d{4}$/.test(pin)) {
-			alert('Mã PIN phải gồm đúng 4 chữ số (ví dụ: 1234, 8888)!');
+		if (pin.length < 4) {
+			alert('Mã PIN cần có ít nhất 4 ký tự/số!');
 			return;
 		}
 
@@ -338,9 +338,9 @@
 	async function handleVerifyPinSubmit(e: SubmitEvent) {
 		e.preventDefault();
 		if (!pinModalTargetMember) return;
-		const pin = pinModalInput.trim();
-		if (pin.length !== 4) {
-			pinModalError = 'Vui lòng nhập đủ 4 số PIN!';
+		const pin = (pinModalInput || '').trim();
+		if (pin.length < 4) {
+			pinModalError = 'Vui lòng nhập đủ mã PIN (tối thiểu 4 ký tự)!';
 			return;
 		}
 
@@ -603,12 +603,11 @@
 						<input
 							type="password"
 							inputmode="numeric"
-							pattern="[0-9]{4}"
-							maxlength="4"
+							maxlength="10"
 							bind:value={newMemberPin}
 							placeholder="PIN 4 số"
 							disabled={isAddingMember}
-							title="Mã PIN 4 số để bạn sửa/xóa lịch của chính mình"
+							title="Mã PIN cá nhân để bạn sửa/xóa lịch của chính mình"
 							class="w-24 bg-zinc-900 border border-zinc-700/80 rounded-xl px-2.5 py-2 text-xs sm:text-sm text-center font-mono tracking-widest text-pink-300 placeholder-zinc-500 focus:outline-none focus:ring-2 focus:ring-pink-500"
 							required
 						/>
@@ -1173,8 +1172,7 @@
 						<input
 							type="password"
 							inputmode="numeric"
-							pattern="[0-9]{4}"
-							maxlength="4"
+							maxlength="10"
 							bind:value={pinModalInput}
 							placeholder="• • • •"
 							class="w-full bg-zinc-900 border border-zinc-700 text-center font-mono text-2xl tracking-[0.5em] py-2.5 rounded-2xl text-white focus:outline-none focus:ring-2 focus:ring-pink-500"
