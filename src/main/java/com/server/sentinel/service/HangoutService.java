@@ -9,9 +9,6 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -38,25 +35,6 @@ public class HangoutService {
         loadMembers();
     }
 
-    public static String hashPin(String rawPin) {
-        if (rawPin == null || rawPin.trim().isEmpty()) {
-            return "";
-        }
-        try {
-            MessageDigest digest = MessageDigest.getInstance("SHA-256");
-            byte[] encodedhash = digest.digest(rawPin.trim().getBytes(StandardCharsets.UTF_8));
-            StringBuilder hexString = new StringBuilder();
-            for (byte b : encodedhash) {
-                String hex = Integer.toHexString(0xff & b);
-                if (hex.length() == 1) hexString.append('0');
-                hexString.append(hex);
-            }
-            return hexString.toString();
-        } catch (NoSuchAlgorithmException e) {
-            return rawPin.trim();
-        }
-    }
-
     private synchronized void loadMembers() {
         File file = new File(storagePath);
         if (file.exists()) {
@@ -68,14 +46,6 @@ public class HangoutService {
                         if (m.getId() != null) {
                             if (m.getAvailableSlots() == null) {
                                 m.setAvailableSlots(new ArrayList<>());
-                            }
-                            // Neu co availableDates cu thi chuyen sang availableSlots (morning, afternoon, evening) de tuong thich
-                            if (m.getAvailableDates() != null && !m.getAvailableDates().isEmpty()) {
-                                for (String d : m.getAvailableDates()) {
-                                    if (!m.getAvailableSlots().contains(d + "_morning")) m.getAvailableSlots().add(d + "_morning");
-                                    if (!m.getAvailableSlots().contains(d + "_afternoon")) m.getAvailableSlots().add(d + "_afternoon");
-                                    if (!m.getAvailableSlots().contains(d + "_evening")) m.getAvailableSlots().add(d + "_evening");
-                                }
                             }
                             membersMap.put(m.getId(), m);
                         }
@@ -105,7 +75,7 @@ public class HangoutService {
     }
 
     /**
-     * Tra ve danh sach thanh vien cho client (giau pinHash de bao mat)
+     * Tra ve danh sach thanh vien cho client (an mat khau de khong bi lo)
      */
     public List<HangoutMemberDto> getAllMembersSafe() {
         List<HangoutMemberDto> list = new ArrayList<>();
@@ -116,8 +86,8 @@ public class HangoutService {
             safe.setAvailableSlots(original.getAvailableSlots() != null ? new ArrayList<>(original.getAvailableSlots()) : new ArrayList<>());
             safe.setColor(original.getColor());
             safe.setUpdatedAt(original.getUpdatedAt());
-            // An pinHash khi gui ve client
-            safe.setPinHash(original.getPinHash() != null && !original.getPinHash().isEmpty() ? "PROTECTED" : "");
+            // An pin khi gui ve danh sach chung
+            safe.setPin(original.getPin() != null && !original.getPin().isEmpty() ? "PROTECTED" : "");
             list.add(safe);
         }
         list.sort(Comparator.comparing(m -> m.getUpdatedAt() != null ? m.getUpdatedAt() : 0L));
@@ -127,12 +97,13 @@ public class HangoutService {
     public boolean verifyPin(String memberId, String rawPin) {
         HangoutMemberDto member = membersMap.get(memberId);
         if (member == null) return false;
-        // Neu thanh vien chua co PIN (thanh vien cu), chap nhan
-        if (member.getPinHash() == null || member.getPinHash().isEmpty()) {
+        // Neu thanh vien chua co PIN, cho phep
+        if (member.getPin() == null || member.getPin().trim().isEmpty()) {
             return true;
         }
-        String inputHash = hashPin(rawPin);
-        return inputHash.equals(member.getPinHash());
+        String storedPin = member.getPin().trim();
+        String inputPin = rawPin != null ? rawPin.trim() : "";
+        return storedPin.equals(inputPin);
     }
 
     public HangoutMemberDto addMemberWithPin(String name, String rawPin) {
@@ -144,17 +115,14 @@ public class HangoutService {
         dto.setColor(DEFAULT_COLORS[idx]);
         dto.setAvailableSlots(new ArrayList<>());
         dto.setUpdatedAt(System.currentTimeMillis());
-        dto.setPinHash(hashPin(rawPin));
+        // Luu truc tiep khong hash
+        dto.setPin(rawPin != null ? rawPin.trim() : "");
 
         membersMap.put(id, dto);
         saveMembersToFile();
         return dto;
     }
 
-    /**
-     * Bat / tat trang thai ranh cua mot buoi (slot).
-     * slot co dang: "YYYY-MM-DD_morning", "YYYY-MM-DD_afternoon", "YYYY-MM-DD_evening"
-     */
     public HangoutMemberDto toggleSlotWithPin(String memberId, String slot, String rawPin) {
         HangoutMemberDto member = membersMap.get(memberId);
         if (member == null) {
@@ -162,7 +130,7 @@ public class HangoutService {
         }
 
         if (!verifyPin(memberId, rawPin)) {
-            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể sửa lịch của thành viên này!");
+            throw new SecurityException("Mật khẩu/mã PIN không chính xác. Không thể sửa lịch của thành viên này!");
         }
 
         List<String> slots = new ArrayList<>(member.getAvailableSlots() != null ? member.getAvailableSlots() : Collections.emptyList());
@@ -178,11 +146,6 @@ public class HangoutService {
         return member;
     }
 
-    /**
-     * Bat / tat tat ca cac buoi trong mot ngay cho thanh vien
-     * Neu tat ca cac buoi cua ngay da duoc chon -> bo chon het ca ngay
-     * Nguoc lai -> chon het tat ca buoi trong ngay do
-     */
     public HangoutMemberDto toggleFullDayWithPin(String memberId, String date, String rawPin) {
         HangoutMemberDto member = membersMap.get(memberId);
         if (member == null) {
@@ -190,7 +153,7 @@ public class HangoutService {
         }
 
         if (!verifyPin(memberId, rawPin)) {
-            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể sửa lịch của thành viên này!");
+            throw new SecurityException("Mật khẩu/mã PIN không chính xác. Không thể sửa lịch của thành viên này!");
         }
 
         String mSlot = date + "_morning";
@@ -222,11 +185,20 @@ public class HangoutService {
         if (member == null) return false;
 
         if (!verifyPin(id, rawPin)) {
-            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể xóa thành viên này!");
+            throw new SecurityException("Mật khẩu/mã PIN không chính xác. Không thể xóa thành viên này!");
         }
 
         membersMap.remove(id);
         saveMembersToFile();
         return true;
+    }
+
+    /**
+     * Truncate toan bo thanh vien va lich hen
+     */
+    public synchronized void truncateAll() {
+        membersMap.clear();
+        saveMembersToFile();
+        log.info("Da truncate toan bo danh sach hangout!");
     }
 }

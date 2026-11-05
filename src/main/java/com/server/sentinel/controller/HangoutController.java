@@ -21,7 +21,7 @@ public class HangoutController {
     }
 
     /**
-     * Lay toan bo danh sach thanh vien va cac buoi ranh (an pinHash)
+     * Lay toan bo danh sach thanh vien va cac buoi ranh (an pin)
      * GET /api/hangout/members
      */
     @GetMapping("/members")
@@ -30,9 +30,8 @@ public class HangoutController {
     }
 
     /**
-     * Them thanh vien moi kem ma PIN 4 so
+     * Them thanh vien moi kem ma PIN/mat khau
      * POST /api/hangout/members
-     * Body: { "name": "Vinh", "pin": "1234" }
      */
     @PostMapping("/members")
     public ResponseEntity<?> createMember(@RequestBody Map<String, String> body) {
@@ -44,14 +43,14 @@ public class HangoutController {
         }
 
         if (pin == null || pin.trim().length() < 4) {
-            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Vui lòng nhập mã PIN bảo vệ 4 số."));
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Vui lòng nhập mật khẩu/mã PIN tối thiểu 4 ký tự."));
         }
 
         HangoutMemberDto saved = hangoutService.addMemberWithPin(name.trim(), pin.trim());
-        saved.setPinHash("PROTECTED");
+        saved.setPin("PROTECTED");
         return ResponseEntity.ok(Map.of(
                 "status", "success",
-                "message", "Đã tạo thành viên với mã PIN bảo vệ thành công.",
+                "message", "Đã tạo thành viên thành công.",
                 "member", saved
         ));
     }
@@ -59,26 +58,24 @@ public class HangoutController {
     /**
      * Kiem tra ma PIN (Xac thuc danh tinh)
      * POST /api/hangout/members/{id}/verify-pin
-     * Body: { "pin": "1234" }
      */
     @PostMapping("/members/{id}/verify-pin")
     public ResponseEntity<?> verifyPin(@PathVariable String id, @RequestBody Map<String, String> body) {
         String pin = body.get("pin");
         if (pin == null || pin.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Mã PIN không được để trống."));
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Mật khẩu không được để trống."));
         }
         boolean ok = hangoutService.verifyPin(id, pin.trim());
         if (ok) {
-            return ResponseEntity.ok(Map.of("status", "success", "message", "Mã PIN chính xác!"));
+            return ResponseEntity.ok(Map.of("status", "success", "message", "Mật khẩu chính xác!"));
         } else {
-            return ResponseEntity.status(403).body(Map.of("status", "error", "message", "Mã PIN 4 số không đúng!"));
+            return ResponseEntity.status(403).body(Map.of("status", "error", "message", "Mật khẩu/mã PIN không đúng!"));
         }
     }
 
     /**
      * Bat/tat trang thai ranh cua thanh vien theo tung buoi
      * POST /api/hangout/members/{id}/toggle-slot
-     * Body: { "slot": "YYYY-MM-DD_morning", "pin": "1234" }
      */
     @PostMapping("/members/{id}/toggle-slot")
     public ResponseEntity<?> toggleSlot(@PathVariable String id, @RequestBody Map<String, String> body) {
@@ -86,12 +83,12 @@ public class HangoutController {
         String pin = body.get("pin");
 
         if (slot == null || slot.trim().isEmpty()) {
-            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Buổi rảnh (slot) không hợp lệ."));
+            return ResponseEntity.badRequest().body(Map.of("status", "error", "message", "Buổi rảnh không hợp lệ."));
         }
 
         try {
             HangoutMemberDto updated = hangoutService.toggleSlotWithPin(id, slot.trim(), pin != null ? pin.trim() : "");
-            updated.setPinHash("PROTECTED");
+            updated.setPin("PROTECTED");
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "member", updated
@@ -108,7 +105,6 @@ public class HangoutController {
     /**
      * Bat/tat ca ngay cho thanh vien
      * POST /api/hangout/members/{id}/toggle-day
-     * Body: { "date": "YYYY-MM-DD", "pin": "1234" }
      */
     @PostMapping("/members/{id}/toggle-day")
     public ResponseEntity<?> toggleDay(@PathVariable String id, @RequestBody Map<String, String> body) {
@@ -121,7 +117,7 @@ public class HangoutController {
 
         try {
             HangoutMemberDto updated = hangoutService.toggleFullDayWithPin(id, date.trim(), pin != null ? pin.trim() : "");
-            updated.setPinHash("PROTECTED");
+            updated.setPin("PROTECTED");
             return ResponseEntity.ok(Map.of(
                     "status", "success",
                     "member", updated
@@ -136,15 +132,7 @@ public class HangoutController {
     }
 
     /**
-     * Legacy toggle-date support (mac dinh goi toggle-day)
-     */
-    @PostMapping("/members/{id}/toggle-date")
-    public ResponseEntity<?> toggleDate(@PathVariable String id, @RequestBody Map<String, String> body) {
-        return toggleDay(id, body);
-    }
-
-    /**
-     * Xoa thanh vien kem ma PIN
+     * Xoa thanh vien
      * DELETE /api/hangout/members/{id}?pin=1234
      */
     @DeleteMapping("/members/{id}")
@@ -161,5 +149,15 @@ public class HangoutController {
         } catch (Exception e) {
             return ResponseEntity.internalServerError().body(Map.of("status", "error", "message", e.getMessage()));
         }
+    }
+
+    /**
+     * Truncate toan bo du lieu hangout
+     * POST /api/hangout/truncate
+     */
+    @PostMapping("/truncate")
+    public ResponseEntity<?> truncate() {
+        hangoutService.truncateAll();
+        return ResponseEntity.ok(Map.of("status", "success", "message", "Đã xóa sạch toàn bộ dữ liệu lịch hẹn!"));
     }
 }

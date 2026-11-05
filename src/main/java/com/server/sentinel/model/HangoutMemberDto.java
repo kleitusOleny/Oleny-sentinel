@@ -8,25 +8,24 @@ public class HangoutMemberDto {
     private String id;
     private String name;
     // Danh sach cac buoi ranh dinh dang "YYYY-MM-DD_morning", "YYYY-MM-DD_afternoon", "YYYY-MM-DD_evening"
-    // De tuong thich nguoc: neu phan tu la "YYYY-MM-DD", coi nhu ranh ca ngay (hoac giu nguyen)
     private List<String> availableSlots;
-    // Deprecated nhung giu de doc du lieu cu neu can
+    // Deprecated tuong thich nguoc
     private List<String> availableDates;
     private String color;
     private Long updatedAt;
-    // Ma PIN 4 so ca nhan (lưu hash SHA-256)
-    private String pinHash;
+    // Mat khau / ma PIN luu truc tiep (khong hash)
+    private String pin;
 
     public HangoutMemberDto() {
     }
 
-    public HangoutMemberDto(String id, String name, List<String> availableSlots, String color, Long updatedAt, String pinHash) {
+    public HangoutMemberDto(String id, String name, List<String> availableSlots, String color, Long updatedAt, String pin) {
         this.id = id;
         this.name = name;
         this.availableSlots = availableSlots;
         this.color = color;
         this.updatedAt = updatedAt;
-        this.pinHash = pinHash;
+        this.pin = pin;
     }
 
     public String getId() {
@@ -77,11 +76,11 @@ public class HangoutMemberDto {
         this.updatedAt = updatedAt;
     }
 
-    public String getPinHash() {
-        return pinHash;
+    public String getPin() {
+        return pin;
     }
 
-    public void setPinHash(String pinHash) {
-        this.pinHash = pinHash;
+    public void setPin(String pin) {
+        this.pin = pin;
     }
 }
