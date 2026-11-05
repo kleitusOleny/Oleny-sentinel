@@ -11,16 +11,19 @@ public class HangoutMemberDto {
     private List<String> availableDates;
     private String color;
     private Long updatedAt;
+    // Ma PIN 4 so ca nhan (lưu hash SHA-256)
+    private String pinHash;
 
     public HangoutMemberDto() {
     }
 
-    public HangoutMemberDto(String id, String name, List<String> availableDates, String color, Long updatedAt) {
+    public HangoutMemberDto(String id, String name, List<String> availableDates, String color, Long updatedAt, String pinHash) {
         this.id = id;
         this.name = name;
         this.availableDates = availableDates;
         this.color = color;
         this.updatedAt = updatedAt;
+        this.pinHash = pinHash;
     }
 
     public String getId() {
@@ -61,5 +64,13 @@ public class HangoutMemberDto {
 
     public void setUpdatedAt(Long updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public String getPinHash() {
+        return pinHash;
+    }
+
+    public void setPinHash(String pinHash) {
+        this.pinHash = pinHash;
     }
 }

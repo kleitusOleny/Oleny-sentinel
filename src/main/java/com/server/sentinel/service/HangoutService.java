@@ -9,6 +9,9 @@ import org.springframework.stereotype.Service;
 
 import java.io.File;
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -33,6 +36,25 @@ public class HangoutService {
                 : "/app/config/hangout_schedule.json";
 
         loadMembers();
+    }
+
+    public static String hashPin(String rawPin) {
+        if (rawPin == null || rawPin.trim().isEmpty()) {
+            return "";
+        }
+        try {
+            MessageDigest digest = MessageDigest.getInstance("SHA-256");
+            byte[] encodedhash = digest.digest(rawPin.trim().getBytes(StandardCharsets.UTF_8));
+            StringBuilder hexString = new StringBuilder();
+            for (byte b : encodedhash) {
+                String hex = Integer.toHexString(0xff & b);
+                if (hex.length() == 1) hexString.append('0');
+                hexString.append(hex);
+            }
+            return hexString.toString();
+        } catch (NoSuchAlgorithmException e) {
+            return rawPin.trim();
+        }
     }
 
     private synchronized void loadMembers() {
@@ -74,38 +96,61 @@ public class HangoutService {
         }
     }
 
-    public List<HangoutMemberDto> getAllMembers() {
-        List<HangoutMemberDto> list = new ArrayList<>(membersMap.values());
+    /**
+     * Tra ve danh sach thanh vien cho client (giau pinHash de bao mat)
+     */
+    public List<HangoutMemberDto> getAllMembersSafe() {
+        List<HangoutMemberDto> list = new ArrayList<>();
+        for (HangoutMemberDto original : membersMap.values()) {
+            HangoutMemberDto safe = new HangoutMemberDto();
+            safe.setId(original.getId());
+            safe.setName(original.getName());
+            safe.setAvailableDates(original.getAvailableDates() != null ? new ArrayList<>(original.getAvailableDates()) : new ArrayList<>());
+            safe.setColor(original.getColor());
+            safe.setUpdatedAt(original.getUpdatedAt());
+            // An pinHash khi gui ve client
+            safe.setPinHash(original.getPinHash() != null && !original.getPinHash().isEmpty() ? "PROTECTED" : "");
+            list.add(safe);
+        }
         list.sort(Comparator.comparing(m -> m.getUpdatedAt() != null ? m.getUpdatedAt() : 0L));
         return list;
     }
 
-    public HangoutMemberDto addOrUpdateMember(HangoutMemberDto dto) {
-        String id = dto.getId();
-        if (id == null || id.trim().isEmpty()) {
-            id = UUID.randomUUID().toString();
-            dto.setId(id);
+    public boolean verifyPin(String memberId, String rawPin) {
+        HangoutMemberDto member = membersMap.get(memberId);
+        if (member == null) return false;
+        // Neu thanh vien chua co PIN (thanh vien cu), chap nhan
+        if (member.getPinHash() == null || member.getPinHash().isEmpty()) {
+            return true;
         }
+        String inputHash = hashPin(rawPin);
+        return inputHash.equals(member.getPinHash());
+    }
 
-        if (dto.getColor() == null || dto.getColor().trim().isEmpty()) {
-            int idx = Math.abs(id.hashCode()) % DEFAULT_COLORS.length;
-            dto.setColor(DEFAULT_COLORS[idx]);
-        }
-
-        if (dto.getAvailableDates() == null) {
-            dto.setAvailableDates(new ArrayList<>());
-        }
-
+    public HangoutMemberDto addMemberWithPin(String name, String rawPin) {
+        String id = UUID.randomUUID().toString();
+        HangoutMemberDto dto = new HangoutMemberDto();
+        dto.setId(id);
+        dto.setName(name.trim());
+        int idx = Math.abs(id.hashCode()) % DEFAULT_COLORS.length;
+        dto.setColor(DEFAULT_COLORS[idx]);
+        dto.setAvailableDates(new ArrayList<>());
         dto.setUpdatedAt(System.currentTimeMillis());
+        dto.setPinHash(hashPin(rawPin));
+
         membersMap.put(id, dto);
         saveMembersToFile();
         return dto;
     }
 
-    public HangoutMemberDto toggleDate(String memberId, String date) {
+    public HangoutMemberDto toggleDateWithPin(String memberId, String date, String rawPin) {
         HangoutMemberDto member = membersMap.get(memberId);
         if (member == null) {
             throw new NoSuchElementException("Không tìm thấy thành viên với ID: " + memberId);
+        }
+
+        if (!verifyPin(memberId, rawPin)) {
+            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể sửa lịch của thành viên này!");
         }
 
         List<String> dates = new ArrayList<>(member.getAvailableDates() != null ? member.getAvailableDates() : Collections.emptyList());
@@ -121,12 +166,16 @@ public class HangoutService {
         return member;
     }
 
-    public boolean deleteMember(String id) {
-        if (membersMap.containsKey(id)) {
-            membersMap.remove(id);
-            saveMembersToFile();
-            return true;
+    public boolean deleteMemberWithPin(String id, String rawPin) {
+        HangoutMemberDto member = membersMap.get(id);
+        if (member == null) return false;
+
+        if (!verifyPin(id, rawPin)) {
+            throw new SecurityException("Mã PIN 4 số không chính xác. Không thể xóa thành viên này!");
         }
-        return false;
+
+        membersMap.remove(id);
+        saveMembersToFile();
+        return true;
     }
 }
