@@ -47,11 +47,17 @@ public class HangoutController {
         }
 
         HangoutMemberDto saved = hangoutService.addMemberWithPin(name.trim(), pin.trim());
-        saved.setPin("PROTECTED");
+        HangoutMemberDto safe = new HangoutMemberDto();
+        safe.setId(saved.getId());
+        safe.setName(saved.getName());
+        safe.setAvailableSlots(saved.getAvailableSlots());
+        safe.setColor(saved.getColor());
+        safe.setUpdatedAt(saved.getUpdatedAt());
+        safe.setPin("PROTECTED");
         return ResponseEntity.ok(Map.of(
                 "status", "success",
                 "message", "Đã tạo thành viên thành công.",
-                "member", saved
+                "member", safe
         ));
     }
 
@@ -88,10 +94,16 @@ public class HangoutController {
 
         try {
             HangoutMemberDto updated = hangoutService.toggleSlotWithPin(id, slot.trim(), pin != null ? pin.trim() : "");
-            updated.setPin("PROTECTED");
+            HangoutMemberDto safe = new HangoutMemberDto();
+            safe.setId(updated.getId());
+            safe.setName(updated.getName());
+            safe.setAvailableSlots(updated.getAvailableSlots());
+            safe.setColor(updated.getColor());
+            safe.setUpdatedAt(updated.getUpdatedAt());
+            safe.setPin("PROTECTED");
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "member", updated
+                    "member", safe
             ));
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));
@@ -117,10 +129,16 @@ public class HangoutController {
 
         try {
             HangoutMemberDto updated = hangoutService.toggleFullDayWithPin(id, date.trim(), pin != null ? pin.trim() : "");
-            updated.setPin("PROTECTED");
+            HangoutMemberDto safe = new HangoutMemberDto();
+            safe.setId(updated.getId());
+            safe.setName(updated.getName());
+            safe.setAvailableSlots(updated.getAvailableSlots());
+            safe.setColor(updated.getColor());
+            safe.setUpdatedAt(updated.getUpdatedAt());
+            safe.setPin("PROTECTED");
             return ResponseEntity.ok(Map.of(
                     "status", "success",
-                    "member", updated
+                    "member", safe
             ));
         } catch (SecurityException e) {
             return ResponseEntity.status(403).body(Map.of("status", "error", "message", e.getMessage()));
